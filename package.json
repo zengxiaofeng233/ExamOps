@@ -1,0 +1,40 @@
+{
+  "name": "exam-ops",
+  "version": "0.1.0",
+  "description": "AI 智能学习桌面应用",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "tauri:dev": "tauri dev",
+    "tauri:build": "tauri build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zengxiaofeng233/ExamOps.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zengxiaofeng233/ExamOps/issues"
+  },
+  "homepage": "https://github.com/zengxiaofeng233/ExamOps#readme",
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.12.1",
+    "@vitejs/plugin-vue": "^5.2.4",
+    "autoprefixer": "^10.6.1",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^5.9.3",
+    "vite": "^6.4.4",
+    "vue-tsc": "^2.2.12"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.2",
+    "pinia": "^2.3.1",
+    "vue": "^3.5.43",
+    "vue-router": "^4.6.4"
+  }
+}
