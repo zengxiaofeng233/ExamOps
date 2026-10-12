@@ -6,6 +6,7 @@ ExamOps Python Sidecar
 
 import sys
 import json
+import argparse
 from typing import Dict, Any
 
 
@@ -13,23 +14,23 @@ def handle_command(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
     """处理来自 Rust 的命令"""
 
     if command == "parse_document":
-        # TODO: 实现文档解析
+        from parser import parse_document
         return {
             "status": "success",
-            "message": "Document parsing not yet implemented"
+            "content": parse_document(data["path"])
         }
 
     elif command == "extract_chapters":
         # TODO: 实现章节提取
         return {
-            "status": "success",
+            "status": "error",
             "message": "Chapter extraction not yet implemented"
         }
 
     elif command == "extract_images":
         # TODO: 实现图片提取
         return {
-            "status": "success",
+            "status": "error",
             "message": "Image extraction not yet implemented"
         }
 
@@ -42,6 +43,20 @@ def handle_command(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
 
 def main():
     """主循环：从标准输入读取命令，输出结果到标准输出"""
+
+    sys.stdin.reconfigure(encoding="utf-8")
+    sys.stdout.reconfigure(encoding="utf-8")
+    sys.stderr.reconfigure(encoding="utf-8")
+    args = argparse.ArgumentParser()
+    args.add_argument("--input")
+    options = args.parse_args()
+    if options.input:
+        try:
+            result = handle_command("parse_document", {"path": options.input})
+        except Exception as error:
+            result = {"status": "error", "message": str(error)}
+        print(json.dumps(result, ensure_ascii=False), flush=True)
+        return
 
     # 通知 Rust 端已启动
     print(json.dumps({"status": "ready"}), flush=True)

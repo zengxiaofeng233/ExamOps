@@ -82,10 +82,15 @@ python-sidecar/
   → Rust 文件系统操作
   → 启动 Python Sidecar
   → 解析文档内容
-  → 提取文本和结构
-  → 建立索引
-  → 存储到 SQLite
+  → 提取正文（图片/扫描页按需 OCR）
+  → 存储到 SQLite document_contents
+  → 处理进程退出
 ```
+
+第一阶段将资料复制到应用数据目录的 `documents/<course_id>/<document_id>.<ext>`，
+每次导入独立保存。OCR 使用随包分发的 RapidOCR / ONNX Runtime CPU 模型，支持简体中文、繁体中文和英文。
+PDF 每次渲染一页，混合页按文字位置去重。结构化解析和索引留到第二阶段。
+处理程序支持标准输入输出 JSON 行协议，桌面端通过一次性 `--input` 请求读取 JSON 结果并等待进程退出。
 
 ### 3. AI 问答流程
 
@@ -109,6 +114,7 @@ python-sidecar/
 5. **study_sessions** - 学习会话
 6. **chat_messages** - 对话记录
 7. **notes** - 笔记
+8. **document_contents** - 第一阶段提取的正文及错误原因
 
 详细 Schema 见 `src-tauri/src/database/schema.rs`
 
@@ -183,4 +189,4 @@ python-sidecar/
 - 静态资源打包
 - 代码压缩
 - NSIS 安装包
-- Python Sidecar 捆绑
+- Python Sidecar、OCR 模型和 WebView2 离线安装程序捆绑

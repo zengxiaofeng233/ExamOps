@@ -29,6 +29,17 @@ pub fn create_tables(conn: &Connection) -> Result<()> {
         [],
     )?;
 
+    // Extracted body is independent of the later RAG chunks/index.
+    conn.execute(
+        "CREATE TABLE IF NOT EXISTS document_contents (
+            document_id INTEGER PRIMARY KEY,
+            content TEXT NOT NULL DEFAULT '',
+            error TEXT,
+            FOREIGN KEY (document_id) REFERENCES documents(id) ON DELETE CASCADE
+        )",
+        [],
+    )?;
+
     // Document chunks table (for RAG)
     conn.execute(
         "CREATE TABLE IF NOT EXISTS document_chunks (

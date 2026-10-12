@@ -62,3 +62,8 @@ env/
 # OS
 .DS_Store
 Thumbs.db
+
+# Bundled Python sidecar and local build environment
+src-tauri/binaries/
+python-sidecar/models/
+python-sidecar/*.spec

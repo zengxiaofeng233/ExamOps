@@ -26,6 +26,7 @@ export interface Document {
   file_size: number
   status: 'pending' | 'processing' | 'completed' | 'failed'
   created_at: string
+  error?: string | null
 }
 
 export interface Note {

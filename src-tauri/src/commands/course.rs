@@ -119,16 +119,10 @@ pub fn update_course(
 }
 
 #[tauri::command]
-pub fn delete_course(app_handle: AppHandle, id: i64) -> Result<(), String> {
-    let conn = database::get_connection(&app_handle).map_err(|e| e.to_string())?;
-
-    let rows_affected = conn
-        .execute("DELETE FROM courses WHERE id = ?1", [id])
-        .map_err(|e| e.to_string())?;
-
-    if rows_affected == 0 {
-        return Err("Course not found".to_string());
-    }
-
-    Ok(())
+pub async fn delete_course(app_handle: AppHandle, tasks: tauri::State<'_, crate::documents::DocumentTasks>, id: i64) -> Result<(), String> {
+    let _guard = tasks.0.lock().await;
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut conn = database::get_connection(&app_handle).map_err(|e| e.to_string())?;
+        crate::documents::delete_course(&mut conn, &super::document::storage_root(&app_handle)?, id)
+    }).await.map_err(|e| e.to_string())?
 }

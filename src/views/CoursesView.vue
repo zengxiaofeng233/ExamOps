@@ -41,6 +41,12 @@
           <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ course.name }}</h3>
           <p class="text-gray-600 text-sm mb-4">{{ course.description }}</p>
           <div class="flex gap-2">
+            <router-link
+              :to="`/courses/${course.id}/documents`"
+              class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
+            >
+              资料
+            </router-link>
             <button
               @click="editCourse(course)"
               class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
@@ -61,7 +67,7 @@
     <!-- Create/Edit Dialog -->
     <div
       v-if="showCreateDialog || showEditDialog"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
       @click.self="closeDialogs"
     >
       <div class="bg-white rounded-lg p-6 w-full max-w-md">
@@ -115,13 +121,13 @@
     <!-- Delete Confirmation Dialog -->
     <div
       v-if="showDeleteDialog"
-      class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4"
+      class="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
       @click.self="showDeleteDialog = false"
     >
       <div class="bg-white rounded-lg p-6 w-full max-w-md">
         <h2 class="text-xl font-bold mb-4">确认删除</h2>
         <p class="text-gray-600 mb-6">
-          确定要删除课程 "{{ courseToDelete?.name }}" 吗？此操作无法撤销。
+          确定要删除课程 "{{ courseToDelete?.name }}" 吗？关联资料的应用内副本和提取正文将一并删除，原文件不受影响。此操作无法撤销。
         </p>
         <div class="flex gap-2 justify-end">
           <button

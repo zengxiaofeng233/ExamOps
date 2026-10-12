@@ -8,8 +8,9 @@
     "build": "vue-tsc && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "sidecar:build": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/build-sidecar.ps1",
+    "tauri:dev": "npm run sidecar:build && tauri dev",
+    "tauri:build": "npm run sidecar:build && tauri build"
   },
   "repository": {
     "type": "git",
@@ -23,6 +24,7 @@
   },
   "homepage": "https://github.com/zengxiaofeng233/ExamOps#readme",
   "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.12.1",
     "@vitejs/plugin-vue": "^5.2.4",
     "autoprefixer": "^10.6.1",
@@ -33,6 +35,7 @@
   },
   "dependencies": {
     "@tauri-apps/api": "^2.12.2",
+    "@tauri-apps/plugin-dialog": "^2.8.2",
     "pinia": "^2.3.1",
     "vue": "^3.5.43",
     "vue-router": "^4.6.4"

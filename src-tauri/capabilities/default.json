@@ -12,6 +12,7 @@
     "core:window:allow-maximize",
     "core:window:allow-minimize",
     "core:window:allow-set-title",
-    "core:path:default"
+    "core:path:default",
+    "dialog:allow-open"
   ]
 }

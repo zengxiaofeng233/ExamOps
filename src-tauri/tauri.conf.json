@@ -11,6 +11,8 @@
   "bundle": {
     "active": true,
     "targets": ["nsis"],
+    "externalBin": ["binaries/examops-parser"],
+    "resources": { "binaries/_internal/": "_internal/" },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -19,6 +21,7 @@
       "icons/icon.ico"
     ],
     "windows": {
+      "webviewInstallMode": { "type": "offlineInstaller" },
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
       "timestampUrl": ""

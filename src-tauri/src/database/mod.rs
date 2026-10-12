@@ -1,5 +1,5 @@
 use rusqlite::{Connection, Result};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use tauri::{AppHandle, Manager};
 
 pub mod schema;
@@ -20,13 +20,22 @@ pub fn init_database(app_handle: &AppHandle) -> Result<()> {
         std::fs::create_dir_all(parent).expect("Failed to create app data directory");
     }
 
-    let conn = Connection::open(&db_path)?;
+    let conn = open_connection(&db_path)?;
     schema::create_tables(&conn)?;
+    conn.execute("UPDATE document_contents SET error = '上次正文提取被中断，请重新导入'
+        WHERE document_id IN (SELECT id FROM documents WHERE status IN ('pending', 'processing'))", [])?;
+    conn.execute("UPDATE documents SET status = 'failed' WHERE status IN ('pending', 'processing')", [])?;
 
     Ok(())
 }
 
 pub fn get_connection(app_handle: &AppHandle) -> Result<Connection> {
     let db_path = get_db_path(app_handle);
-    Connection::open(db_path)
+    open_connection(&db_path)
+}
+
+pub fn open_connection(path: &Path) -> Result<Connection> {
+    let conn = Connection::open(path)?;
+    conn.pragma_update(None, "foreign_keys", "ON")?;
+    Ok(conn)
 }
