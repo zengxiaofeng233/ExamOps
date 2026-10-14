@@ -15,6 +15,21 @@ from pptx.util import Inches
 
 from parser import Ocr, parse_document
 
+CJK_FONTS = [
+    'C:/Windows/Fonts/msyh.ttc',
+    '/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc',
+    '/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc',
+    '/System/Library/Fonts/PingFang.ttc',
+]
+
+
+def cjk_font(size):
+    """A font that can draw Chinese test images on Windows, Linux or macOS."""
+    for candidate in CJK_FONTS:
+        if Path(candidate).exists():
+            return ImageFont.truetype(candidate, size)
+    raise unittest.SkipTest('未找到可绘制中文的字体（Windows 自带微软雅黑；Linux 请安装 fonts-noto-cjk）')
+
 
 def make_pdf(path, image=None, native="Native title", pages=1):
     writer = PdfWriter()
@@ -46,7 +61,7 @@ def make_pdf(path, image=None, native="Native title", pages=1):
 def make_fixtures(folder):
     image = Image.new('RGB', (1100, 230), 'white')
     draw = ImageDraw.Draw(image)
-    font = ImageFont.truetype('C:/Windows/Fonts/msyh.ttc', 42)
+    font = cjk_font(42)
     for y, text in [(20, '简体中文课程资料'), (85, '繁體中文課程資料'), (150, 'English study material 123')]:
         draw.text((25, y), text, font=font, fill='black')
     image.save(folder / '图片.png')

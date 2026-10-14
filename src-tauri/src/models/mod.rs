@@ -1,3 +1,3 @@
-pub mod course;
+//! Data structures shared with the frontend (mirrored in `src/types/`).
 
-pub use course::Course;
+pub mod course;

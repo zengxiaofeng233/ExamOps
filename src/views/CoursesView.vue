@@ -1,222 +1,160 @@
 <template>
-  <div class="w-full h-full flex flex-col bg-gray-50">
-    <header class="bg-white border-b border-gray-200 px-6 py-4">
-      <h1 class="text-2xl font-bold text-gray-900">我的课程</h1>
+  <div class="flex h-full flex-col">
+    <header class="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-4">
+      <div>
+        <h1 class="page-title">我的课程</h1>
+        <p class="mt-0.5 text-sm text-slate-500">每门课程独立管理资料、学习路径和复习记录。</p>
+      </div>
+      <button class="btn btn-primary" @click="openCreate">
+        <PlusIcon class="size-4" />创建课程
+      </button>
     </header>
 
-    <main class="flex-1 p-6 overflow-y-auto">
-      <div class="mb-6">
-        <button
-          @click="showCreateDialog = true"
-          class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          创建课程
-        </button>
+    <main class="flex-1 overflow-y-auto p-6">
+      <p v-if="courseStore.loading && !courseStore.courses.length" class="py-12 text-center text-slate-500">加载中…</p>
+
+      <div v-else-if="courseStore.error && !courseStore.courses.length" class="py-12 text-center">
+        <p class="text-rose-600">{{ courseStore.error }}</p>
+        <button class="btn btn-secondary mt-4" @click="courseStore.fetchCourses().catch(() => undefined)">重试</button>
       </div>
 
-      <div v-if="courseStore.loading" class="text-center py-12">
-        <p class="text-gray-500">加载中...</p>
-      </div>
+      <EmptyState
+        v-else-if="!courseStore.sortedCourses.length"
+        title="还没有课程"
+        description="创建一门课程，然后导入教材、PPT 等学习资料。"
+      >
+        <button class="btn btn-primary" @click="openCreate">创建第一门课程</button>
+      </EmptyState>
 
-      <div v-else-if="courseStore.error" class="text-center py-12">
-        <p class="text-red-600">{{ courseStore.error }}</p>
-        <button
-          @click="courseStore.fetchCourses()"
-          class="mt-4 px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700"
-        >
-          重试
-        </button>
-      </div>
-
-      <div v-else-if="courseStore.sortedCourses.length === 0" class="text-center py-12">
-        <p class="text-gray-500">暂无课程，点击上方按钮创建第一个课程</p>
-      </div>
-
-      <div v-else class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        <div
+      <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
+        <article
           v-for="course in courseStore.sortedCourses"
           :key="course.id"
-          class="bg-white rounded-lg border border-gray-200 p-4 hover:shadow-md transition-shadow"
+          class="card group flex flex-col p-5 transition-shadow hover:shadow-md"
         >
-          <h3 class="text-lg font-semibold text-gray-900 mb-2">{{ course.name }}</h3>
-          <p class="text-gray-600 text-sm mb-4">{{ course.description }}</p>
-          <div class="flex gap-2">
-            <router-link
-              :to="`/courses/${course.id}/documents`"
-              class="px-3 py-1 text-sm bg-blue-100 text-blue-700 rounded hover:bg-blue-200"
-            >
-              资料
-            </router-link>
-            <button
-              @click="editCourse(course)"
-              class="px-3 py-1 text-sm bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-            >
-              编辑
-            </button>
-            <button
-              @click="confirmDelete(course)"
-              class="px-3 py-1 text-sm bg-red-100 text-red-700 rounded hover:bg-red-200"
-            >
-              删除
-            </button>
+          <RouterLink :to="`/courses/${course.id}`" class="min-w-0 flex-1">
+            <h3 class="truncate text-base font-semibold text-slate-900 group-hover:text-indigo-700" :title="course.name">{{ course.name }}</h3>
+            <p class="mt-1.5 line-clamp-3 min-h-[1.25rem] text-sm text-slate-500">{{ course.description || '暂无简介' }}</p>
+          </RouterLink>
+          <div class="mt-4 flex items-center justify-between gap-2">
+            <span class="text-xs text-slate-400">更新于 {{ formatRelative(course.updated_at) }}</span>
+            <div class="flex gap-1">
+              <RouterLink :to="`/courses/${course.id}/documents`" class="btn btn-soft btn-sm">资料</RouterLink>
+              <button class="btn btn-ghost btn-sm" @click="openEdit(course)">编辑</button>
+              <button class="btn btn-ghost btn-sm text-rose-600 hover:text-rose-700" @click="courseToDelete = course">删除</button>
+            </div>
           </div>
-        </div>
+        </article>
       </div>
     </main>
 
-    <!-- Create/Edit Dialog -->
-    <div
-      v-if="showCreateDialog || showEditDialog"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
-      @click.self="closeDialogs"
-    >
-      <div class="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 class="text-xl font-bold mb-4">
-          {{ showEditDialog ? '编辑课程' : '创建课程' }}
-        </h2>
-        <form @submit.prevent="handleSubmit">
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              课程名称
-            </label>
-            <input
-              v-model="formData.name"
-              type="text"
-              required
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="输入课程名称"
-            />
-          </div>
-          <div class="mb-4">
-            <label class="block text-sm font-medium text-gray-700 mb-2">
-              课程描述
-            </label>
-            <textarea
-              v-model="formData.description"
-              rows="4"
-              class="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="输入课程描述"
-            />
-          </div>
-          <div class="flex gap-2 justify-end">
-            <button
-              type="button"
-              @click="closeDialogs"
-              class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-            >
-              取消
-            </button>
-            <button
-              type="submit"
-              :disabled="courseStore.loading"
-              class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-            >
-              {{ showEditDialog ? '保存' : '创建' }}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-
-    <!-- Delete Confirmation Dialog -->
-    <div
-      v-if="showDeleteDialog"
-      class="fixed inset-0 bg-black/50 flex items-center justify-center p-4"
-      @click.self="showDeleteDialog = false"
-    >
-      <div class="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 class="text-xl font-bold mb-4">确认删除</h2>
-        <p class="text-gray-600 mb-6">
-          确定要删除课程 "{{ courseToDelete?.name }}" 吗？关联资料的应用内副本和提取正文将一并删除，原文件不受影响。此操作无法撤销。
-        </p>
-        <div class="flex gap-2 justify-end">
-          <button
-            @click="showDeleteDialog = false"
-            class="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300"
-          >
-            取消
-          </button>
-          <button
-            @click="handleDelete"
-            :disabled="courseStore.loading"
-            class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 disabled:opacity-50"
-          >
-            删除
-          </button>
+    <AppModal :open="dialogOpen" :title="editing ? '编辑课程' : '创建课程'" @close="closeDialog">
+      <form id="course-form" class="space-y-4" @submit.prevent="handleSubmit">
+        <div>
+          <label class="label" for="course-name">课程名称</label>
+          <input id="course-name" v-model="form.name" type="text" required maxlength="100" class="input" placeholder="例如：高等数学（上）" />
         </div>
-      </div>
-    </div>
+        <div>
+          <label class="label" for="course-desc">课程描述</label>
+          <textarea id="course-desc" v-model="form.description" rows="4" class="input" placeholder="考试范围、任课老师、教材版本等（可选）" />
+        </div>
+      </form>
+      <template #footer>
+        <button type="button" class="btn btn-secondary" @click="closeDialog">取消</button>
+        <button type="submit" form="course-form" class="btn btn-primary" :disabled="saving || !form.name.trim()">
+          {{ saving ? '保存中…' : editing ? '保存' : '创建' }}
+        </button>
+      </template>
+    </AppModal>
+
+    <ConfirmDialog
+      :open="!!courseToDelete"
+      title="删除课程"
+      :message="`确定要删除课程“${courseToDelete?.name}”吗？\n课程的资料副本、提取正文、学习记录将一并删除，原文件不受影响。此操作无法撤销。`"
+      confirm-text="删除"
+      danger
+      :busy="deleting"
+      @cancel="courseToDelete = null"
+      @confirm="handleDelete"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, reactive } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { PlusIcon } from '@heroicons/vue/20/solid'
+import AppModal from '@/components/ui/AppModal.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useCourseStore } from '@/stores/course'
+import { useToastStore } from '@/stores/toast'
 import type { Course } from '@/types/models'
+import { formatRelative } from '@/utils/format'
 
+const router = useRouter()
 const courseStore = useCourseStore()
+const toast = useToastStore()
 
-const showCreateDialog = ref(false)
-const showEditDialog = ref(false)
-const showDeleteDialog = ref(false)
+const dialogOpen = ref(false)
+const editing = ref<Course | null>(null)
 const courseToDelete = ref<Course | null>(null)
-const editingCourse = ref<Course | null>(null)
+const saving = ref(false)
+const deleting = ref(false)
+const form = reactive({ name: '', description: '' })
 
-const formData = reactive({
-  name: '',
-  description: ''
-})
+onMounted(() => courseStore.fetchCourses().catch(() => undefined))
 
-onMounted(async () => {
-  await courseStore.fetchCourses()
-})
-
-const closeDialogs = () => {
-  showCreateDialog.value = false
-  showEditDialog.value = false
-  formData.name = ''
-  formData.description = ''
-  editingCourse.value = null
+function openCreate() {
+  editing.value = null
+  form.name = ''
+  form.description = ''
+  dialogOpen.value = true
 }
 
-const editCourse = (course: Course) => {
-  editingCourse.value = course
-  formData.name = course.name
-  formData.description = course.description
-  showEditDialog.value = true
+function openEdit(course: Course) {
+  editing.value = course
+  form.name = course.name
+  form.description = course.description
+  dialogOpen.value = true
 }
 
-const confirmDelete = (course: Course) => {
-  courseToDelete.value = course
-  showDeleteDialog.value = true
+function closeDialog() {
+  dialogOpen.value = false
+  editing.value = null
 }
 
-const handleSubmit = async () => {
+async function handleSubmit() {
+  saving.value = true
   try {
-    if (showEditDialog.value && editingCourse.value) {
-      await courseStore.updateCourse(
-        editingCourse.value.id,
-        formData.name,
-        formData.description
-      )
+    if (editing.value) {
+      await courseStore.updateCourse({ id: editing.value.id, name: form.name, description: form.description })
+      toast.success('课程已保存')
+      closeDialog()
     } else {
-      await courseStore.createCourse(formData.name, formData.description)
+      const course = await courseStore.createCourse(form.name, form.description)
+      closeDialog()
+      toast.success('课程已创建，现在可以导入资料了')
+      router.push(`/courses/${course.id}/documents`)
     }
-    closeDialogs()
   } catch (error) {
-    console.error('Failed to save course:', error)
+    toast.error(error)
+  } finally {
+    saving.value = false
   }
 }
 
-const handleDelete = async () => {
-  if (courseToDelete.value) {
-    try {
-      await courseStore.deleteCourse(courseToDelete.value.id)
-      showDeleteDialog.value = false
-      courseToDelete.value = null
-    } catch (error) {
-      console.error('Failed to delete course:', error)
-    }
+async function handleDelete() {
+  if (!courseToDelete.value) return
+  deleting.value = true
+  try {
+    await courseStore.deleteCourse(courseToDelete.value.id)
+    toast.success('课程已删除')
+    courseToDelete.value = null
+  } catch (error) {
+    toast.error(error)
+  } finally {
+    deleting.value = false
   }
 }
 </script>

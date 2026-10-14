@@ -1,128 +1,104 @@
 use crate::database;
+use crate::error::{AppError, AppResult, OptionalRow};
 use crate::models::course::{Course, CreateCourseInput, UpdateCourseInput};
+use rusqlite::Connection;
 use tauri::AppHandle;
 
-#[tauri::command]
-pub fn create_course(
-    app_handle: AppHandle,
-    input: CreateCourseInput,
-) -> Result<Course, String> {
-    let conn = database::get_connection(&app_handle).map_err(|e| e.to_string())?;
+const COURSE_COLUMNS: &str = "id, name, description, created_at, updated_at";
 
-    conn.execute(
-        "INSERT INTO courses (name, description) VALUES (?1, ?2)",
-        [&input.name, &input.description],
+fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Course> {
+    Ok(Course {
+        id: row.get(0)?,
+        name: row.get(1)?,
+        description: row.get(2)?,
+        created_at: row.get(3)?,
+        updated_at: row.get(4)?,
+    })
+}
+
+pub fn find(conn: &Connection, id: i64) -> AppResult<Course> {
+    conn.query_row(
+        &format!("SELECT {COURSE_COLUMNS} FROM courses WHERE id = ?1"),
+        [id],
+        from_row,
     )
-    .map_err(|e| e.to_string())?;
+    .or_not_found("课程")
+}
 
-    let id = conn.last_insert_rowid();
-
-    let course = conn
-        .query_row(
-            "SELECT id, name, description, created_at, updated_at FROM courses WHERE id = ?1",
-            [id],
-            |row| {
-                Ok(Course {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    description: row.get(2)?,
-                    created_at: row.get(3)?,
-                    updated_at: row.get(4)?,
-                })
-            },
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(course)
+fn clean_name(name: &str) -> AppResult<String> {
+    let name = name.trim();
+    if name.is_empty() {
+        return Err(AppError::invalid("课程名称不能为空"));
+    }
+    if name.chars().count() > 100 {
+        return Err(AppError::invalid("课程名称不能超过 100 个字符"));
+    }
+    Ok(name.to_string())
 }
 
 #[tauri::command]
-pub fn get_courses(app_handle: AppHandle) -> Result<Vec<Course>, String> {
-    let conn = database::get_connection(&app_handle).map_err(|e| e.to_string())?;
+pub fn create_course(app_handle: AppHandle, input: CreateCourseInput) -> AppResult<Course> {
+    let conn = database::get_connection(&app_handle)?;
+    let name = clean_name(&input.name)?;
+    conn.execute(
+        "INSERT INTO courses (name, description) VALUES (?1, ?2)",
+        [&name, input.description.trim()],
+    )?;
+    find(&conn, conn.last_insert_rowid())
+}
 
-    let mut stmt = conn
-        .prepare("SELECT id, name, description, created_at, updated_at FROM courses ORDER BY updated_at DESC")
-        .map_err(|e| e.to_string())?;
-
+#[tauri::command]
+pub fn get_courses(app_handle: AppHandle) -> AppResult<Vec<Course>> {
+    let conn = database::get_connection(&app_handle)?;
+    let mut stmt = conn.prepare(&format!(
+        "SELECT {COURSE_COLUMNS} FROM courses ORDER BY updated_at DESC, id DESC"
+    ))?;
     let courses = stmt
-        .query_map([], |row| {
-            Ok(Course {
-                id: row.get(0)?,
-                name: row.get(1)?,
-                description: row.get(2)?,
-                created_at: row.get(3)?,
-                updated_at: row.get(4)?,
-            })
-        })
-        .map_err(|e| e.to_string())?
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|e| e.to_string())?;
-
+        .query_map([], from_row)?
+        .collect::<rusqlite::Result<Vec<_>>>()?;
     Ok(courses)
 }
 
 #[tauri::command]
-pub fn update_course(
-    app_handle: AppHandle,
-    input: UpdateCourseInput,
-) -> Result<Course, String> {
-    let conn = database::get_connection(&app_handle).map_err(|e| e.to_string())?;
-
-    let mut updates = Vec::new();
-    let mut params: Vec<Box<dyn rusqlite::ToSql>> = Vec::new();
-
-    if let Some(name) = &input.name {
-        updates.push("name = ?");
-        params.push(Box::new(name.clone()));
-    }
-
-    if let Some(description) = &input.description {
-        updates.push("description = ?");
-        params.push(Box::new(description.clone()));
-    }
-
-    if updates.is_empty() {
-        return Err("No fields to update".to_string());
-    }
-
-    updates.push("updated_at = datetime('now', 'localtime')");
-
-    let sql = format!(
-        "UPDATE courses SET {} WHERE id = ?",
-        updates.join(", ")
-    );
-
-    params.push(Box::new(input.id));
-
-    let params_ref: Vec<&dyn rusqlite::ToSql> = params.iter().map(|b| &**b as &dyn rusqlite::ToSql).collect();
-
-    conn.execute(&sql, params_ref.as_slice())
-        .map_err(|e| e.to_string())?;
-
-    let course = conn
-        .query_row(
-            "SELECT id, name, description, created_at, updated_at FROM courses WHERE id = ?1",
-            [input.id],
-            |row| {
-                Ok(Course {
-                    id: row.get(0)?,
-                    name: row.get(1)?,
-                    description: row.get(2)?,
-                    created_at: row.get(3)?,
-                    updated_at: row.get(4)?,
-                })
-            },
-        )
-        .map_err(|e| e.to_string())?;
-
-    Ok(course)
+pub fn get_course(app_handle: AppHandle, id: i64) -> AppResult<Course> {
+    let conn = database::get_connection(&app_handle)?;
+    find(&conn, id)
 }
 
 #[tauri::command]
-pub async fn delete_course(app_handle: AppHandle, tasks: tauri::State<'_, crate::documents::DocumentTasks>, id: i64) -> Result<(), String> {
+pub fn update_course(app_handle: AppHandle, input: UpdateCourseInput) -> AppResult<Course> {
+    let conn = database::get_connection(&app_handle)?;
+    find(&conn, input.id)?;
+    if let Some(name) = &input.name {
+        conn.execute(
+            "UPDATE courses SET name = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
+            rusqlite::params![clean_name(name)?, input.id],
+        )?;
+    }
+    if let Some(description) = &input.description {
+        conn.execute(
+            "UPDATE courses SET description = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
+            rusqlite::params![description.trim(), input.id],
+        )?;
+    }
+    find(&conn, input.id)
+}
+
+#[tauri::command]
+pub async fn delete_course(
+    app_handle: AppHandle,
+    tasks: tauri::State<'_, crate::documents::DocumentTasks>,
+    id: i64,
+) -> AppResult<()> {
     let _guard = tasks.0.lock().await;
     tauri::async_runtime::spawn_blocking(move || {
-        let mut conn = database::get_connection(&app_handle).map_err(|e| e.to_string())?;
-        crate::documents::delete_course(&mut conn, &super::document::storage_root(&app_handle)?, id)
-    }).await.map_err(|e| e.to_string())?
+        let mut conn = database::get_connection(&app_handle)?;
+        crate::documents::delete_course(
+            &mut conn,
+            &super::document::storage_root(&app_handle)?,
+            id,
+        )
+        .map_err(AppError::from)
+    })
+    .await?
 }

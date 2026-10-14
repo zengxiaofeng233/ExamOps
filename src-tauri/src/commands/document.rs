@@ -1,16 +1,12 @@
 use crate::{
-    database,
+    database::{self, AppPaths},
     documents::{self, Document, DocumentTasks},
 };
 use std::path::PathBuf;
 use tauri::{AppHandle, Manager, State};
 
 pub fn storage_root(app: &AppHandle) -> Result<PathBuf, String> {
-    Ok(app
-        .path()
-        .app_data_dir()
-        .map_err(|e| e.to_string())?
-        .join("documents"))
+    Ok(app.state::<AppPaths>().documents_dir.clone())
 }
 
 #[tauri::command]

@@ -1,9 +1,6 @@
 use rusqlite::{params, Connection};
 use serde::{Deserialize, Serialize};
-use std::{
-    fs,
-    path::{Path, PathBuf},
-};
+use std::{fs, path::Path};
 
 #[derive(Default)]
 pub struct DocumentTasks(pub tokio::sync::Mutex<()>);
@@ -171,20 +168,8 @@ struct ParserResponse {
 }
 
 pub async fn extract(path: &Path) -> Result<String, String> {
-    let executable = if cfg!(debug_assertions) {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("binaries/examops-parser-x86_64-pc-windows-msvc.exe")
-    } else {
-        std::env::current_exe()
-            .map_err(|e| e.to_string())?
-            .with_file_name("examops-parser.exe")
-    };
-    let mut command = tokio::process::Command::new(executable);
-    command
-        .args([std::ffi::OsStr::new("--input"), path.as_os_str()])
-        .kill_on_drop(true);
-    #[cfg(windows)]
-    command.creation_flags(0x08000000); // CREATE_NO_WINDOW
+    let mut command = crate::sidecar::command()?;
+    command.args([std::ffi::OsStr::new("--input"), path.as_os_str()]);
     let output = command
         .output()
         .await
@@ -223,8 +208,7 @@ mod tests {
         fs::write(&source, "学习资料").unwrap();
         let db = folder.join("test.db");
         let root = folder.join("documents");
-        let mut conn = crate::database::open_connection(&db).unwrap();
-        crate::database::schema::create_tables(&conn).unwrap();
+        let mut conn = crate::database::open_and_migrate(&db).unwrap();
         conn.execute("INSERT INTO courses (name) VALUES ('课程')", [])
             .unwrap();
         let first = prepare(&mut conn, &root, 1, &source).unwrap();
