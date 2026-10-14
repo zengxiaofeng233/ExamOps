@@ -33,6 +33,40 @@
             </section>
           </template>
 
+          <template v-else-if="active === 'study'">
+            <section class="card p-5">
+              <h2 class="section-title">小测</h2>
+              <p class="mt-0.5 text-sm text-slate-500">小测结果会计入知识点掌握度，并据此安排复习。</p>
+              <fieldset class="mt-4">
+                <legend class="label">什么时候建议做小测</legend>
+                <div class="space-y-1.5">
+                  <label v-for="(label, value) in TRIGGER_LABELS" :key="value" class="flex items-center gap-2 text-sm text-slate-700">
+                    <input v-model="form.quiz.trigger" type="radio" :value="value" class="accent-indigo-600" @change="save" />{{ label }}
+                  </label>
+                </div>
+                <p class="hint">“从零学习”时按这里的设置提示你做小测；任何时候都可以在“测验”页手动开始。</p>
+              </fieldset>
+              <div class="mt-4 grid gap-4 sm:grid-cols-2">
+                <div>
+                  <label class="label" for="quiz-count-setting">每次题目数量</label>
+                  <input id="quiz-count-setting" v-model.number="form.quiz.question_count" type="number" min="1" max="20" step="1" class="input" @change="save" />
+                </div>
+                <label class="flex items-center gap-2 self-end pb-2 text-sm text-slate-700">
+                  <input v-model="form.quiz.allow_skip" type="checkbox" class="accent-indigo-600" @change="save" />允许跳过题目（跳过按答错计）
+                </label>
+              </div>
+              <fieldset class="mt-4">
+                <legend class="label">默认题型</legend>
+                <div class="grid gap-1.5 sm:grid-cols-2">
+                  <label v-for="(label, kind) in QUESTION_KIND_LABELS" :key="kind" class="flex items-start gap-2 text-sm text-slate-700">
+                    <input v-model="form.quiz.kinds" type="checkbox" :value="kind" class="mt-1 accent-indigo-600" :disabled="form.quiz.kinds.length === 1 && form.quiz.kinds.includes(kind)" @change="save" />
+                    <span>{{ label }}<span class="block text-xs text-slate-500">{{ QUESTION_KIND_HINTS[kind] }}</span></span>
+                  </label>
+                </div>
+              </fieldset>
+            </section>
+          </template>
+
           <template v-else-if="active === 'data'">
             <section class="card p-5">
               <h2 class="section-title">本地数据</h2>
@@ -75,6 +109,7 @@ import { useAppStore } from '@/stores/app'
 import { useToastStore } from '@/stores/toast'
 import { AppService } from '@/services/app'
 import type { AppInfo, AppSettings } from '@/types/app'
+import { QUESTION_KIND_HINTS, QUESTION_KIND_LABELS, TRIGGER_LABELS } from '@/utils/assessment'
 import { formatBytes } from '@/utils/format'
 
 const app = useAppStore()
@@ -82,6 +117,7 @@ const toast = useToastStore()
 const sections = [
   { id: 'models', label: 'AI 模型' },
   { id: 'general', label: '通用' },
+  { id: 'study', label: '学习与测验' },
   { id: 'data', label: '数据与存储' },
   { id: 'about', label: '关于' }
 ] as const
@@ -91,17 +127,21 @@ const router = useRouter()
 const active = ref<SectionId>(sections.some(s => s.id === route.query.section) ? (route.query.section as SectionId) : 'models')
 watch(active, (section) => router.replace({ query: { section } }))
 const info = ref<AppInfo | null>(null)
-const form = reactive<AppSettings>({ ...app.settings })
+/** Plain copy (reactive proxies cannot be structured-cloned). */
+const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value))
+const form = reactive<AppSettings>(clone(app.settings))
 
 onMounted(async () => {
   if (!app.ready) await app.load().catch(() => undefined)
-  Object.assign(form, app.settings)
+  Object.assign(form, clone(app.settings))
   info.value = await AppService.info().catch((e) => { toast.error(e); return null })
 })
 
 async function save() {
   try {
-    Object.assign(form, await app.save({ ...form }))
+    // Only this page's fields; the model page saves the context settings itself.
+    const next = { ...clone(app.settings), restore_last_location: form.restore_last_location, quiz: clone(form.quiz) }
+    Object.assign(form, clone(await app.save(next)))
     toast.success('设置已保存')
   } catch (e) {
     toast.error(e)

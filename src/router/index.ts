@@ -48,6 +48,18 @@ const routes: RouteRecordRaw[] = [
         meta: { tab: 'AI 学习' }
       },
       {
+        path: 'quiz',
+        name: 'quiz',
+        component: () => import('@/views/course/QuizView.vue'),
+        meta: { tab: '测验' }
+      },
+      {
+        path: 'review',
+        name: 'review',
+        component: () => import('@/views/course/ReviewView.vue'),
+        meta: { tab: '复习' }
+      },
+      {
         path: 'tutor',
         name: 'tutor',
         component: () => import('@/views/course/TutorView.vue'),

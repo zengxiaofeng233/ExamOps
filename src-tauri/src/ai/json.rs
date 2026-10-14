@@ -2,8 +2,6 @@
 //! Everything parsed here is validated by the caller before it touches the
 //! database: model output is data, never commands.
 
-#![cfg_attr(not(test), allow(dead_code))] // used by the knowledge and quiz engines
-
 use serde::de::DeserializeOwned;
 
 /// Finds the first parseable JSON object/array in `text`.

@@ -2,16 +2,19 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 mod ai;
+mod assessment;
 mod commands;
 mod context;
 mod database;
 mod documents;
 mod error;
 mod knowledge;
+mod mastery;
 mod models;
 mod notes;
 mod paths;
 mod resources;
+mod review;
 mod search;
 mod security;
 mod settings;
@@ -124,6 +127,20 @@ fn main() {
             commands::study::delete_note,
             commands::study::get_study_state,
             commands::study::save_reading_position,
+            commands::assessment::create_quiz,
+            commands::assessment::list_quizzes,
+            commands::assessment::get_quiz,
+            commands::assessment::delete_quiz,
+            commands::assessment::save_quiz_answer,
+            commands::assessment::set_quiz_position,
+            commands::assessment::submit_quiz,
+            commands::assessment::regrade_quiz,
+            commands::assessment::self_grade_question,
+            commands::assessment::list_mistakes,
+            commands::assessment::resolve_mistake,
+            commands::assessment::get_review_queue,
+            commands::assessment::get_recommendations,
+            commands::assessment::get_ai_advice,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -27,6 +27,11 @@ export interface KnowledgePoint {
   difficult: boolean
   created_at: string
   updated_at: string
+  /** Quiz-based mastery 0..1; null until tested. */
+  mastery: number | null
+  attempts: number
+  /** Next spaced-review date (YYYY-MM-DD). */
+  due_date: string | null
 }
 
 export interface KnowledgeInput {

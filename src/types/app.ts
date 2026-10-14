@@ -7,9 +7,22 @@ export interface ContextSettings {
   history_turns: number
 }
 
+/** When the tutor suggests a quiz: after each knowledge point, after each chapter, or only manually. */
+export type QuizTrigger = 'point' | 'chapter' | 'manual'
+
+export type QuestionKind = 'single_choice' | 'true_false' | 'short_answer' | 'recall' | 'scenario'
+
+export interface QuizSettings {
+  trigger: QuizTrigger
+  question_count: number
+  allow_skip: boolean
+  kinds: QuestionKind[]
+}
+
 export interface AppSettings {
   restore_last_location: boolean
   context: ContextSettings
+  quiz: QuizSettings
 }
 
 export interface AppInfo {

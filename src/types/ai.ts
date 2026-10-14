@@ -117,6 +117,8 @@ export interface PlanMeta {
   /** Lesson part taught in this turn. */
   part?: number | null
   parts?: number
+  /** Knowledge points fully taught in this turn (quiz suggestions). */
+  covered_points?: number[]
 }
 
 export interface MessageMeta {

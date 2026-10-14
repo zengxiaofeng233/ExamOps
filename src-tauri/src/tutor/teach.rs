@@ -436,6 +436,8 @@ pub fn plan(conn: &Connection, conversation: &Conversation, action: &str, target
     let mut retrieve = true;
     let mut after: Option<AfterHook> = None;
     let mut taught: Option<usize> = None;
+    // Knowledge points fully taught this turn (the UI may suggest a quiz on them).
+    let mut covered: Vec<i64> = Vec::new();
     let mut display = action_label(mode, lesson.video().is_some(), action).to_string();
 
     let ids = Ids { conversation: conversation.id, course: conversation.course_id, section: conversation.section_id, step: conversation.step_id };
@@ -509,6 +511,7 @@ pub fn plan(conn: &Connection, conversation: &Conversation, action: &str, target
             taught = Some(next);
             let sections = lesson.sections_completed_by(next);
             let completed: Vec<i64> = points.iter().filter(|p| p.section_id.map(|s| sections.contains(&s)).unwrap_or(false)).map(|p| p.id).collect();
+            covered = completed.clone();
             after = Some(Box::new(move |conn, _| {
                 super::save_progress(conn, ids.conversation, &progress)?;
                 knowledge::mark_learned(conn, &completed)?;
@@ -596,7 +599,7 @@ pub fn plan(conn: &Connection, conversation: &Conversation, action: &str, target
         scope: teaching_scope(conversation),
         primary,
         retrieve,
-        meta: json!({ "action": action, "target": target, "part": taught, "parts": total, "before": before }),
+        meta: json!({ "action": action, "target": target, "part": taught, "parts": total, "before": before, "covered_points": covered }),
         after,
     })
 }
@@ -738,6 +741,7 @@ mod tests {
         (first.after.unwrap())(&conn, &message).unwrap();
         let conversation = crate::tutor::get(&conn, conversation.id).unwrap();
         assert_eq!((conversation.progress.next, conversation.progress.taught.clone(), conversation.progress.last), (1, vec![0], Some(0)));
+        assert_eq!(first.meta["covered_points"].as_array().unwrap().len(), 1);
         // The part covered sub-section 1.1 entirely: its point is now "学过".
         assert_eq!(knowledge::list(&conn, 1).unwrap().iter().find(|p| p.title == "1.1 极限的定义").unwrap().status, "learned");
         let outline = outline(&conn, conversation.id).unwrap();

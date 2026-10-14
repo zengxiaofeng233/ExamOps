@@ -51,6 +51,8 @@ const tabs = [
   { name: 'knowledge', label: '知识点' },
   { name: 'paths', label: '学习路径' },
   { name: 'learn', label: 'AI 学习' },
+  { name: 'quiz', label: '测验' },
+  { name: 'review', label: '复习' },
   { name: 'tutor', label: 'AI 问答' },
   { name: 'videos', label: '网课' },
   { name: 'notes', label: '笔记' }

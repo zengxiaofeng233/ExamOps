@@ -55,6 +55,27 @@
         </ol>
       </section>
 
+      <section v-if="!loading && (actions.length || reviewSummary?.tested)" class="card p-5" aria-labelledby="review-title">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="review-title" class="section-title">复习与建议</h2>
+          <RouterLink :to="{ name: 'review', params: { id: course.id } }" class="text-xs text-indigo-600 hover:underline">查看复习计划</RouterLink>
+        </div>
+        <p v-if="reviewSummary" class="mt-2 flex flex-wrap gap-2 text-xs">
+          <span class="badge" :class="reviewSummary.due ? 'bg-rose-50 text-rose-700' : 'bg-slate-100 text-slate-600'">今日到期 {{ reviewSummary.due }}</span>
+          <span class="badge bg-amber-50 text-amber-700">薄弱 {{ reviewSummary.weak }}</span>
+          <span class="badge bg-sky-50 text-sky-700">学过未测 {{ reviewSummary.untested }}</span>
+          <span class="badge bg-slate-100 text-slate-600">错题 {{ reviewSummary.open_mistakes }}</span>
+          <span v-if="reviewSummary.next_due && !reviewSummary.due" class="text-slate-400">下次复习：{{ describeDue(reviewSummary.next_due) }}</span>
+        </p>
+        <ul v-if="actions.length" class="mt-3 grid gap-2 md:grid-cols-3">
+          <li v-for="action in actions.slice(0, 3)" :key="action.kind + action.title" class="flex flex-col rounded-lg border border-slate-200 p-3">
+            <p class="text-sm font-medium text-slate-900">{{ action.title }}</p>
+            <p class="mt-0.5 flex-1 text-xs text-slate-500">{{ action.detail }}</p>
+            <button class="btn btn-soft btn-sm mt-2 self-start" @click="runAction(action)">开始</button>
+          </li>
+        </ul>
+      </section>
+
       <div class="grid gap-5 md:grid-cols-3">
         <section class="card p-5 md:col-span-2" aria-labelledby="progress-title">
           <div class="flex items-center justify-between">
@@ -115,11 +136,14 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { BookOpenIcon, ChatBubbleLeftRightIcon, PlayIcon } from '@heroicons/vue/20/solid'
+import { ReviewService } from '@/services/assessment'
 import { PathService, StudyService } from '@/services/study'
 import { useCourseStore } from '@/stores/course'
 import { useToastStore } from '@/stores/toast'
 import type { Course } from '@/types/models'
+import type { ReviewSummary, StudyAction } from '@/types/assessment'
 import type { StudyState } from '@/types/study'
+import { actionTarget, describeDue } from '@/utils/assessment'
 import { formatDateTime, formatRelative } from '@/utils/format'
 import { daysUntil, examCountdown, MODE_LABELS, stepRoute } from '@/utils/study'
 
@@ -129,6 +153,8 @@ const toast = useToastStore()
 const courses = useCourseStore()
 
 const state = ref<StudyState | null>(null)
+const reviewSummary = ref<ReviewSummary | null>(null)
+const actions = ref<StudyAction[]>([])
 const loading = ref(true)
 const savingDate = ref(false)
 const examDate = ref(props.course.exam_date ?? '')
@@ -194,9 +220,30 @@ async function updateExamDate(value: string) {
 const saveExamDate = () => updateExamDate(examDate.value)
 const clearExamDate = () => updateExamDate('')
 
+function runAction(action: StudyAction) {
+  const target = actionTarget(action, props.course.id)
+  if (target.type === 'route') {
+    router.push(target.to)
+    return
+  }
+  const input = target.input
+  router.push({
+    name: 'quiz',
+    params: { id: props.course.id },
+    query: { auto: 1, origin: input.origin, ...(input.knowledge_point_ids?.length ? { points: input.knowledge_point_ids.join(',') } : {}) }
+  })
+}
+
 onMounted(async () => {
   try {
-    state.value = await StudyService.state(props.course.id)
+    const [studyState, queue, recommendations] = await Promise.all([
+      StudyService.state(props.course.id),
+      ReviewService.queue(props.course.id),
+      ReviewService.recommendations(props.course.id)
+    ])
+    state.value = studyState
+    reviewSummary.value = queue.summary
+    actions.value = recommendations
   } catch (e) {
     toast.error(e)
   } finally {

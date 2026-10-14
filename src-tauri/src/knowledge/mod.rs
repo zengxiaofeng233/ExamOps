@@ -31,6 +31,11 @@ pub struct KnowledgePoint {
     pub difficult: bool,
     pub created_at: String,
     pub updated_at: String,
+    /// Quiz-based mastery (0..1); `None` until the point has been tested.
+    pub mastery: Option<f64>,
+    pub attempts: i64,
+    /// Next spaced-review date.
+    pub due_date: Option<String>,
 }
 
 #[derive(Debug, Clone, Deserialize)]
@@ -52,10 +57,11 @@ pub struct KnowledgeInput {
 
 const SELECT: &str = "SELECT k.id, k.course_id, k.document_id, d.filename, k.section_id, s.title, k.title, k.summary,
     k.page_start, k.page_end, d.loc_kind, k.importance, k.origin, k.position, k.status, k.learned_at, k.difficult,
-    k.created_at, k.updated_at
+    k.created_at, k.updated_at, m.score, COALESCE(m.attempts, 0), m.due_date
     FROM knowledge_points k
     LEFT JOIN documents d ON d.id = k.document_id
-    LEFT JOIN document_sections s ON s.id = k.section_id";
+    LEFT JOIN document_sections s ON s.id = k.section_id
+    LEFT JOIN mastery m ON m.knowledge_point_id = k.id";
 
 /// Course order: document, then chapter order, then position within the chapter.
 const ORDER: &str = "ORDER BY COALESCE(k.document_id, 1e12), COALESCE(s.ordinal, 1e12), k.position, k.id";
@@ -89,6 +95,9 @@ fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<KnowledgePoint> {
         difficult: row.get(16)?,
         created_at: row.get(17)?,
         updated_at: row.get(18)?,
+        mastery: row.get(19)?,
+        attempts: row.get(20)?,
+        due_date: row.get(21)?,
     })
 }
 

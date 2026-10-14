@@ -71,6 +71,7 @@
           :course-id="course.id"
           :placeholder="placeholder"
           @updated="onUpdated"
+          @answered="onAnswered"
         >
           <template #header>
             <span class="badge" :class="MODE_CLASSES[active.mode]">{{ MODE_LABELS[active.mode] }}</span>
@@ -87,6 +88,14 @@
               <button class="btn btn-primary mt-3" :disabled="panelBusy || !models.configured" @click="act('start')">
                 <PlayIcon class="size-4" />{{ startText }}
               </button>
+            </div>
+          </template>
+          <template #after>
+            <div v-if="suggestion" class="flex flex-wrap items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4" role="status">
+              <ClipboardDocumentCheckIcon class="size-5 shrink-0 text-indigo-600" />
+              <p class="min-w-0 flex-1 text-sm text-indigo-900">{{ suggestion.text }}</p>
+              <RouterLink :to="{ name: 'quiz', params: { id: course.id }, query: suggestion.query }" class="btn btn-primary btn-sm">开始小测</RouterLink>
+              <button class="btn btn-ghost btn-sm" @click="suggestion = null">稍后</button>
             </div>
           </template>
           <template #actions="{ busy, ready }">
@@ -167,16 +176,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { ArrowRightIcon, CheckCircleIcon, CheckIcon, ForwardIcon, PlayIcon, TrashIcon } from '@heroicons/vue/20/solid'
+import { ArrowRightIcon, CheckCircleIcon, CheckIcon, ClipboardDocumentCheckIcon, ForwardIcon, PlayIcon, TrashIcon } from '@heroicons/vue/20/solid'
 import ChatPanel from '@/components/chat/ChatPanel.vue'
 import SectionSelect from '@/components/study/SectionSelect.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { ChatService, TeachingService } from '@/services/ai'
 import { DocumentService } from '@/services/document'
+import { useAppStore } from '@/stores/app'
 import { useModelStore } from '@/stores/models'
 import { useToastStore } from '@/stores/toast'
-import type { Conversation } from '@/types/ai'
+import type { Conversation, Message } from '@/types/ai'
 import type { CourseSection } from '@/types/document'
 import type { Course } from '@/types/models'
 import type { LessonPart, PathMode, StartTeachingInput, TeachAction } from '@/types/study'
@@ -190,6 +200,9 @@ const route = useRoute()
 const router = useRouter()
 const toast = useToastStore()
 const models = useModelStore()
+const app = useAppStore()
+/** Quiz offered after a lesson part or a whole chapter (per the quiz settings). */
+const suggestion = ref<{ text: string; query: Record<string, string | number> } | null>(null)
 
 const conversations = ref<Conversation[]>([])
 const sections = ref<CourseSection[]>([])
@@ -322,8 +335,23 @@ function onUpdated(conversation: Conversation) {
   conversations.value.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id - a.id)
   if (before && !before.progress.finished && conversation.progress.finished) {
     toast.success('已学完！相关知识点已记为“学过”，可以去做小测检验掌握程度')
+    if (app.settings.quiz.trigger === 'chapter' && conversation.section_id) {
+      suggestion.value = {
+        text: '本章学完了，来做一次章节小测，检验是否真正掌握？',
+        query: { auto: 1, origin: 'chapter', section: conversation.section_id }
+      }
+    }
   }
   if (!before || JSON.stringify(before.progress) !== JSON.stringify(conversation.progress) || !outline.value.length) loadOutline()
+}
+
+function onAnswered(message: Message) {
+  const covered = message.meta.plan?.covered_points ?? []
+  if (message.status !== 'done' || active.value?.mode !== 'learn' || app.settings.quiz.trigger !== 'point' || !covered.length) return
+  suggestion.value = {
+    text: `这一部分讲完了 ${covered.length} 个知识点，做个小测检验一下？`,
+    query: { auto: 1, origin: 'point', points: covered.join(','), count: Math.min(app.settings.quiz.question_count, covered.length * 2) }
+  }
 }
 
 async function finishLesson() {
@@ -360,12 +388,14 @@ function syncForm() {
 
 watch(activeId, () => {
   outline.value = []
+  suggestion.value = null
   syncForm()
   loadOutline()
 })
 
 onMounted(async () => {
   models.load().catch(() => undefined)
+  if (!app.ready) app.load().catch(() => undefined)
   try {
     const [, list] = await Promise.all([refresh(), DocumentService.courseSections(props.course.id)])
     sections.value = list

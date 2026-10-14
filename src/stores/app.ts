@@ -5,7 +5,8 @@ import { AppService } from '@/services/app'
 
 const DEFAULTS: AppSettings = {
   restore_last_location: true,
-  context: { mode: 'auto', rag_top_k: 8, full_ratio: 0.8, history_turns: 6 }
+  context: { mode: 'auto', rag_top_k: 8, full_ratio: 0.8, history_turns: 6 },
+  quiz: { trigger: 'chapter', question_count: 5, allow_skip: true, kinds: ['single_choice', 'true_false', 'short_answer', 'recall', 'scenario'] }
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -15,7 +16,7 @@ export const useAppStore = defineStore('app', () => {
   async function load() {
     try {
       const loaded = await AppService.settings()
-      settings.value = { ...DEFAULTS, ...loaded, context: { ...DEFAULTS.context, ...loaded.context } }
+      settings.value = { ...DEFAULTS, ...loaded, context: { ...DEFAULTS.context, ...loaded.context }, quiz: { ...DEFAULTS.quiz, ...loaded.quiz } }
     } finally {
       ready.value = true
     }

@@ -94,7 +94,7 @@ fn chunk_tokens(chunk: &ChunkHit) -> usize {
 }
 
 /// Escapes fence markers so material cannot close its own fence.
-fn neutralize(text: &str) -> String {
+pub(crate) fn neutralize(text: &str) -> String {
     text.replace("<<<", "«<").replace(">>>", ">»")
 }
 

@@ -64,9 +64,18 @@
                     {{ point.section_title && point.section_title !== point.title ? point.section_title : point.filename }}{{ point.loc_label ? ` · ${point.loc_label}` : '' }}
                   </RouterLink>
                   <span v-if="point.learned_at">学过于 {{ formatDateTime(point.learned_at) }}</span>
+                  <span v-if="point.due_date" :class="dueSoon(point.due_date) ? 'text-rose-600' : ''">下次复习：{{ describeDue(point.due_date) }}</span>
                 </p>
               </div>
+              <MasteryBar :score="point.mastery" compact class="mt-1 shrink-0" />
               <div class="flex shrink-0 items-center gap-0.5">
+                <RouterLink
+                  :to="{ name: 'quiz', params: { id: course.id }, query: { auto: 1, origin: 'manual', points: point.id, count: 3 } }"
+                  class="btn btn-ghost btn-sm"
+                  title="针对这个知识点做小测"
+                >
+                  <ClipboardDocumentCheckIcon class="size-4" />
+                </RouterLink>
                 <RouterLink
                   v-if="point.section_id"
                   :to="{ name: 'learn', params: { id: course.id }, query: { mode: 'learn', section: point.section_id } }"
@@ -106,7 +115,7 @@
             </li>
           </ul>
         </section>
-        <p class="pb-2 text-center text-xs text-slate-400">“学过”表示已经学习过；“已掌握”只能通过测验获得，两者分开记录。</p>
+        <p class="pb-2 text-center text-xs text-slate-400">“学过”表示已经学习过；“已掌握”只能通过测验获得（掌握度 ≥ 80%），两者分开记录。</p>
       </div>
     </div>
 
@@ -175,9 +184,10 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import {
-  AcademicCapIcon, ArrowPathIcon, ArrowUturnLeftIcon, CheckIcon, FlagIcon, ListBulletIcon, PencilSquareIcon, PlusIcon,
-  SparklesIcon, TrashIcon
+  AcademicCapIcon, ArrowPathIcon, ArrowUturnLeftIcon, CheckIcon, ClipboardDocumentCheckIcon, FlagIcon, ListBulletIcon, PencilSquareIcon,
+  PlusIcon, SparklesIcon, TrashIcon
 } from '@heroicons/vue/20/solid'
+import MasteryBar from '@/components/study/MasteryBar.vue'
 import SectionSelect from '@/components/study/SectionSelect.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -189,8 +199,9 @@ import { useToastStore } from '@/stores/toast'
 import type { CourseSection } from '@/types/document'
 import type { Course } from '@/types/models'
 import type { KnowledgeInput, KnowledgePoint } from '@/types/study'
+import { describeDue } from '@/utils/assessment'
 import { formatDateTime } from '@/utils/format'
-import { IMPORTANCE_LABELS, POINT_STATUS_CLASSES, POINT_STATUS_LABELS } from '@/utils/study'
+import { daysUntil, IMPORTANCE_LABELS, POINT_STATUS_CLASSES, POINT_STATUS_LABELS } from '@/utils/study'
 
 const props = defineProps<{ course: Course }>()
 const toast = useToastStore()
@@ -259,6 +270,10 @@ onMounted(async () => {
     loading.value = false
   }
 })
+
+function dueSoon(date: string) {
+  return (daysUntil(date) ?? 99) <= 0
+}
 
 function replace(point: KnowledgePoint) {
   const index = points.value.findIndex(p => p.id === point.id)
