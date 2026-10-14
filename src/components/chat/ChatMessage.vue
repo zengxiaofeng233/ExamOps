@@ -1,11 +1,17 @@
 <template>
-  <div v-if="message.role === 'user'" class="flex justify-end">
+  <div v-if="message.role === 'user' && isAction" class="flex justify-end">
+    <span class="inline-flex items-center gap-1.5 rounded-full border border-indigo-200 bg-indigo-50 px-3 py-1 text-sm text-indigo-700">
+      <BoltIcon class="size-3.5" aria-hidden="true" />{{ message.content }}
+    </span>
+  </div>
+  <div v-else-if="message.role === 'user'" class="flex justify-end">
     <div class="max-w-[85%] rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2.5 text-[15px] leading-7 break-words whitespace-pre-wrap text-white">{{ message.content }}</div>
   </div>
   <div v-else class="flex gap-3">
     <div class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-[11px] font-bold text-white">AI</div>
     <div class="min-w-0 flex-1">
       <p class="mb-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
+        <span v-if="partLabel" class="badge bg-indigo-50 text-indigo-700">{{ partLabel }}</span>
         <span v-if="message.meta.model">{{ message.meta.profile ?? '' }} · {{ message.meta.model }}</span>
         <span v-if="contextLabel" class="badge bg-slate-100 text-slate-600" :title="contextTitle">{{ contextLabel }}</span>
         <span v-if="message.meta.notice" class="text-amber-600">{{ message.meta.notice }}</span>
@@ -46,6 +52,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
+import { BoltIcon } from '@heroicons/vue/20/solid'
 import MarkdownContent from './MarkdownContent.vue'
 import SourceList from './SourceList.vue'
 import type { Message, SourceRef } from '@/types/ai'
@@ -55,7 +62,13 @@ const emit = defineEmits<{ 'open-source': [source: SourceRef]; regenerate: [] }>
 const copied = ref(false)
 
 const reasoning = computed(() => props.liveReasoning || (props.message.meta.reasoning as string | undefined) || '')
-const contextLabel = computed(() => ({ full: '全文上下文', rag: '检索上下文', none: '无资料' } as Record<string, string>)[props.message.meta.context_mode ?? ''] ?? '')
+const contextLabel = computed(() => ({ full: '全文上下文', rag: '检索上下文', lesson: '本节资料', none: '无资料' } as Record<string, string>)[props.message.meta.context_mode ?? ''] ?? '')
+/** Teaching buttons are stored as short action messages. */
+const isAction = computed(() => !!props.message.meta.plan?.action && props.message.meta.plan.action !== 'ask')
+const partLabel = computed(() => {
+  const plan = props.message.meta.plan
+  return plan && plan.part != null && plan.parts ? `第 ${plan.part + 1}/${plan.parts} 部分` : ''
+})
 const contextTitle = computed(() => {
   const meta = props.message.meta
   const parts = []

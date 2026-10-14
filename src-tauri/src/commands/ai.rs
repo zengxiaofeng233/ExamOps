@@ -2,7 +2,7 @@ use crate::ai::{self, client::TestReport, profiles, AiState};
 use crate::database::{self, AppPaths};
 use crate::error::AppResult;
 use crate::settings;
-use crate::tutor::{self, chat, Conversation, ConversationDetail, Message};
+use crate::tutor::{self, chat, teach, Conversation, ConversationDetail, Message};
 use tauri::{ipc::Channel, AppHandle, State};
 
 #[tauri::command]
@@ -84,6 +84,8 @@ pub fn delete_conversation(app_handle: AppHandle, id: i64) -> AppResult<()> {
     tutor::delete(&conn, id)
 }
 
+/// Q&A conversations answer questions; teaching conversations (learn / review /
+/// sprint) build a teaching plan for the requested action.
 #[tauri::command]
 pub async fn send_message(
     paths: State<'_, AppPaths>,
@@ -91,10 +93,47 @@ pub async fn send_message(
     input: chat::SendInput,
     on_event: Channel<chat::ChatEvent>,
 ) -> AppResult<Message> {
-    chat::run_turn(paths.inner(), ai.inner(), input.conversation_id, chat::qa_plan, &input.content, input.regenerate, move |event| {
+    let emit = move |event| {
         let _ = on_event.send(event);
-    })
-    .await
+    };
+    let teaching = {
+        let conn = paths.connect()?;
+        let conversation = tutor::get(&conn, input.conversation_id)?;
+        if conversation.mode == "qa" {
+            None
+        } else if input.regenerate {
+            Some(teach::prepare_regenerate(&conn, input.conversation_id)?)
+        } else {
+            Some((input.action.clone().unwrap_or_else(|| "ask".into()), input.target))
+        }
+    };
+    match teaching {
+        None => chat::run_turn(paths.inner(), ai.inner(), input.conversation_id, chat::qa_plan, &input.content, input.regenerate, emit).await,
+        Some((action, target)) => {
+            let plan = move |conn: &rusqlite::Connection, conversation: &Conversation, text: &str| teach::plan(conn, conversation, &action, target, text);
+            chat::run_turn(paths.inner(), ai.inner(), input.conversation_id, plan, &input.content, input.regenerate, emit).await
+        }
+    }
+}
+
+/// Opens (or creates) the teaching conversation for a chapter / video and mode.
+#[tauri::command]
+pub fn start_teaching(app_handle: AppHandle, input: teach::StartTeaching) -> AppResult<Conversation> {
+    let conn = database::get_connection(&app_handle)?;
+    let default_mode = settings::load(&conn)?.context.mode;
+    teach::start(&conn, input, default_mode)
+}
+
+#[tauri::command]
+pub fn get_lesson_outline(app_handle: AppHandle, conversation_id: i64) -> AppResult<Vec<teach::LessonPart>> {
+    let conn = database::get_connection(&app_handle)?;
+    teach::outline(&conn, conversation_id)
+}
+
+#[tauri::command]
+pub fn mark_lesson_finished(app_handle: AppHandle, conversation_id: i64) -> AppResult<Conversation> {
+    let conn = database::get_connection(&app_handle)?;
+    teach::mark_finished(&conn, conversation_id)
 }
 
 #[tauri::command]

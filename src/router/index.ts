@@ -30,10 +30,40 @@ const routes: RouteRecordRaw[] = [
         meta: { tab: '资料' }
       },
       {
+        path: 'knowledge',
+        name: 'knowledge',
+        component: () => import('@/views/course/KnowledgeView.vue'),
+        meta: { tab: '知识点' }
+      },
+      {
+        path: 'paths',
+        name: 'paths',
+        component: () => import('@/views/course/PathsView.vue'),
+        meta: { tab: '学习路径' }
+      },
+      {
+        path: 'learn',
+        name: 'learn',
+        component: () => import('@/views/course/LearnView.vue'),
+        meta: { tab: 'AI 学习' }
+      },
+      {
         path: 'tutor',
         name: 'tutor',
         component: () => import('@/views/course/TutorView.vue'),
         meta: { tab: 'AI 问答' }
+      },
+      {
+        path: 'videos',
+        name: 'videos',
+        component: () => import('@/views/course/VideosView.vue'),
+        meta: { tab: '网课' }
+      },
+      {
+        path: 'notes',
+        name: 'notes',
+        component: () => import('@/views/course/NotesView.vue'),
+        meta: { tab: '笔记' }
       }
     ]
   },

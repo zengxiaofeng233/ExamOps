@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-full min-h-0">
     <!-- Library -->
-    <aside v-show="!libraryHidden" class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:w-72">
+    <aside v-show="!libraryHidden || !documents.length" class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:w-72">
       <div class="space-y-2 border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" :disabled="importing" @click="importFiles">
           <ArrowUpTrayIcon class="size-4" />{{ importing ? '正在导入…' : '导入资料' }}
@@ -37,6 +37,7 @@
     <section class="flex min-w-0 flex-1 flex-col">
       <form class="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5" role="search" @submit.prevent="runSearch">
         <button
+          v-if="documents.length"
           type="button"
           class="btn btn-ghost btn-sm"
           :title="libraryHidden ? '显示资料列表' : '隐藏资料列表'"
@@ -69,12 +70,16 @@
           :document="selected"
           :page="targetPage"
           :terms="highlight"
+          :course-id="course.id"
           :busy="importing || reprocessing"
           @reprocess="reprocess"
           @delete="confirmDelete = true"
           @visible-page="rememberPage"
         />
         <EmptyState v-else-if="documents.length" title="选择一份资料开始阅读" description="左侧列表中的资料解析完成后，可按章节阅读并查看原页面。" />
+        <EmptyState v-else-if="!loading" title="导入第一份资料" description="支持 PDF、Word、PPT、TXT 和 Markdown。导入后会自动识别章节，可以阅读、检索，并让 AI 按章节讲解。">
+          <button class="btn btn-primary" :disabled="importing" @click="importFiles"><ArrowUpTrayIcon class="size-4" />导入资料</button>
+        </EmptyState>
       </div>
     </section>
 
@@ -101,6 +106,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import DocumentReader from '@/components/documents/DocumentReader.vue'
 import SearchResults from '@/components/documents/SearchResults.vue'
 import { DocumentService } from '@/services/document'
+import { StudyService } from '@/services/study'
 import { useToastStore } from '@/stores/toast'
 import type { Course } from '@/types/models'
 import type { Document, ImportProgress, SearchHit, SearchResult } from '@/types/document'
@@ -189,6 +195,8 @@ function openDocument(id: number, page?: number) {
 function rememberPage(page: number) {
   reportedPage = page
   router.replace({ query: { ...route.query, page } })
+  // Restored from the overview ("上次阅读") and counted as study activity.
+  if (selected.value) StudyService.saveReading(props.course.id, selected.value.id, page).catch(() => undefined)
 }
 
 function badgeClass(document: Document) {

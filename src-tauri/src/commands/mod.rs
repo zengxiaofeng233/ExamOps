@@ -5,3 +5,4 @@ pub mod ai;
 pub mod app;
 pub mod course;
 pub mod document;
+pub mod study;

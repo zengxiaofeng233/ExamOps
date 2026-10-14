@@ -2,6 +2,7 @@
 
 pub mod chat;
 pub mod prompts;
+pub mod teach;
 
 use crate::context::{ContextMode, ConversationScope, SourceRef};
 use crate::error::{AppError, AppResult, OptionalRow};
@@ -10,6 +11,27 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 pub const MODES: [&str; 4] = ["qa", "learn", "review", "sprint"];
+
+/// Progress of a "从零学习" conversation over the lesson parts of a chapter
+/// (or of a video transcript). See `teach::lesson_parts`.
+#[derive(Debug, Clone, Serialize, Deserialize, Default, PartialEq)]
+pub struct TeachProgress {
+    /// Index of the next part to teach.
+    #[serde(default)]
+    pub next: usize,
+    /// Number of parts when progress was last saved.
+    #[serde(default)]
+    pub parts: usize,
+    /// Part taught most recently (context for examples, re-explanations and questions).
+    #[serde(default)]
+    pub last: Option<usize>,
+    #[serde(default)]
+    pub taught: Vec<usize>,
+    #[serde(default)]
+    pub skipped: Vec<usize>,
+    #[serde(default)]
+    pub finished: bool,
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct Conversation {
@@ -24,6 +46,12 @@ pub struct Conversation {
     pub updated_at: String,
     pub message_count: i64,
     pub last_message: Option<String>,
+    pub section_id: Option<i64>,
+    pub section_title: Option<String>,
+    pub step_id: Option<i64>,
+    pub resource_id: Option<i64>,
+    pub resource_title: Option<String>,
+    pub progress: TeachProgress,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -74,7 +102,10 @@ pub struct UpdateConversation {
 
 const CONVERSATION_COLUMNS: &str = "c.id, c.course_id, c.mode, c.title, c.context_mode, c.scope, c.profile_id, c.created_at, c.updated_at,
     (SELECT COUNT(*) FROM messages m WHERE m.conversation_id = c.id),
-    (SELECT substr(m.content, 1, 80) FROM messages m WHERE m.conversation_id = c.id AND m.content != '' ORDER BY m.id DESC LIMIT 1)";
+    (SELECT substr(m.content, 1, 80) FROM messages m WHERE m.conversation_id = c.id AND m.content != '' ORDER BY m.id DESC LIMIT 1),
+    c.section_id, s.title, c.step_id, c.resource_id, r.title, c.progress";
+
+const CONVERSATION_FROM: &str = "conversations c LEFT JOIN document_sections s ON s.id = c.section_id LEFT JOIN resources r ON r.id = c.resource_id";
 
 fn conversation_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Conversation> {
     let mode: String = row.get(4)?;
@@ -91,6 +122,12 @@ fn conversation_from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Conversati
         updated_at: row.get(8)?,
         message_count: row.get(9)?,
         last_message: row.get(10)?,
+        section_id: row.get(11)?,
+        section_title: row.get(12)?,
+        step_id: row.get(13)?,
+        resource_id: row.get(14)?,
+        resource_title: row.get(15)?,
+        progress: serde_json::from_str(&row.get::<_, String>(16)?).unwrap_or_default(),
     })
 }
 
@@ -122,14 +159,14 @@ fn mode_name(mode: ContextMode) -> &'static str {
 
 pub fn list(conn: &Connection, course_id: i64) -> AppResult<Vec<Conversation>> {
     let mut stmt = conn.prepare(&format!(
-        "SELECT {CONVERSATION_COLUMNS} FROM conversations c WHERE c.course_id = ?1 ORDER BY c.updated_at DESC, c.id DESC"
+        "SELECT {CONVERSATION_COLUMNS} FROM {CONVERSATION_FROM} WHERE c.course_id = ?1 ORDER BY c.updated_at DESC, c.id DESC"
     ))?;
     let rows = stmt.query_map([course_id], conversation_from_row)?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
 }
 
 pub fn get(conn: &Connection, id: i64) -> AppResult<Conversation> {
-    conn.query_row(&format!("SELECT {CONVERSATION_COLUMNS} FROM conversations c WHERE c.id = ?1"), [id], conversation_from_row)
+    conn.query_row(&format!("SELECT {CONVERSATION_COLUMNS} FROM {CONVERSATION_FROM} WHERE c.id = ?1"), [id], conversation_from_row)
         .or_not_found("对话")
 }
 
@@ -186,6 +223,11 @@ pub fn update(conn: &Connection, input: UpdateConversation) -> AppResult<Convers
         conn.execute("UPDATE conversations SET profile_id = ?1 WHERE id = ?2", params![profile, input.id])?;
     }
     get(conn, input.id)
+}
+
+pub fn save_progress(conn: &Connection, id: i64, progress: &TeachProgress) -> AppResult<()> {
+    conn.execute("UPDATE conversations SET progress = ?1 WHERE id = ?2", params![serde_json::to_string(progress)?, id])?;
+    Ok(())
 }
 
 pub fn delete(conn: &Connection, id: i64) -> AppResult<()> {

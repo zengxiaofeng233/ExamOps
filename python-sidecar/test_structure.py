@@ -191,7 +191,8 @@ class StructureTests(NoOcr):
                         encoding='utf-8')
         result = parse_structured(path)
         self.assertEqual(result['structure_source'], 'markdown')
-        self.assertEqual(headings(result), [(1, '# 第一部分'), (2, '## 小节 A'), (1, '标题二')])
+        # Section titles drop the "#" marks of ATX headings.
+        self.assertEqual(headings(result), [(1, '第一部分'), (2, '小节 A'), (1, '标题二')])
         self.assertEqual(result['loc_kind'], 'line')
         labels = [p['label'] for p in result['pages']]
         self.assertEqual(labels[0], '第 1 行')

@@ -25,10 +25,20 @@ pub struct SendInput {
     /// Re-answer the last question instead of asking a new one.
     #[serde(default)]
     pub regenerate: bool,
+    /// Teaching action (`start`, `continue`, `example`…); `None` = a question.
+    #[serde(default)]
+    pub action: Option<String>,
+    /// Lesson part for the `goto` action.
+    #[serde(default)]
+    pub target: Option<usize>,
 }
+
+/// Runs after a complete answer (e.g. advances the teaching progress).
+pub type AfterHook = Box<dyn FnOnce(&Connection, &Message) -> AppResult<()> + Send>;
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
+#[allow(clippy::large_enum_variant)] // short-lived events sent straight to the UI
 pub enum ChatEvent {
     Started { request_id: String, user_message: Option<Message>, assistant_message: Message },
     Delta { text: String },
@@ -47,7 +57,10 @@ pub struct TurnPlan {
     pub scope: ConversationScope,
     /// Extra fenced material that must be included (e.g. the slice being taught).
     pub primary: Option<BuiltContext>,
+    /// Whether the Context Engine adds material from `scope` (Full/RAG/Auto).
+    pub retrieve: bool,
     pub meta: Value,
+    pub after: Option<AfterHook>,
 }
 
 pub const MAX_QUESTION_CHARS: usize = 8000;
@@ -144,18 +157,23 @@ pub async fn run_turn(
     let fixed_prompt = prompts::system_prompt(&course.name, &plan.task, &BuiltContext::default());
     let primary_tokens = plan.primary.as_ref().map(|p| p.tokens).unwrap_or(0);
     let budget = material_budget(&profile, &[&fixed_prompt, &plan.prompt], &history).saturating_sub(primary_tokens);
-    let mut built = context::build(&conn, &ContextRequest {
-        course_id: conversation.course_id,
-        query: &plan.retrieval_query,
-        mode: conversation.context_mode,
-        scope: &plan.scope,
-        budget_tokens: budget,
-        top_k: app_settings.context.rag_top_k,
-        full_ratio: app_settings.context.full_ratio,
-    })?;
+    let mut built = if plan.retrieve {
+        context::build(&conn, &ContextRequest {
+            course_id: conversation.course_id,
+            query: &plan.retrieval_query,
+            mode: conversation.context_mode,
+            scope: &plan.scope,
+            budget_tokens: budget,
+            top_k: app_settings.context.rag_top_k,
+            full_ratio: app_settings.context.full_ratio,
+        })?
+    } else {
+        BuiltContext::default()
+    };
     if let Some(primary) = plan.primary {
         built = merge_primary(primary, built);
     }
+    let after = plan.after;
     let system = prompts::system_prompt(&course.name, &plan.task, &built);
     let mut messages = vec![ChatMessage::system(system)];
     messages.extend(history);
@@ -203,7 +221,7 @@ pub async fn run_turn(
         Some(GatewayError::Cancelled) => ("cancelled", None),
         Some(other) => ("error", Some(other.to_string())),
     };
-    let sources = context::finalize_sources(built.sources, &completion.text, &built.mode_used);
+    let sources = context::finalize_sources(built.sources, &completion.text, &built.mode_used, built.pinned);
     meta["elapsed_ms"] = json!(completion.elapsed_ms);
     meta["finish_reason"] = json!(completion.finish_reason);
     meta["output_truncated"] = json!(completion.finish_reason.as_deref() == Some("length"));
@@ -222,8 +240,14 @@ pub async fn run_turn(
     };
     meta["usage"] = json!({ "prompt": prompt_used, "completion": completion_used, "estimated": estimated });
     let message = super::finish_message(&conn, assistant.id, &completion.text, status, error.as_deref(), &sources, &meta)?;
+    if status == "done" {
+        if let Some(after) = after {
+            after(&conn, &message)?;
+        }
+    }
     let first = super::messages(&conn, conversation_id)?.into_iter().find(|m| m.role == "user").map(|m| m.content);
     super::touch(&conn, conversation_id, first.as_deref())?;
+    crate::study::set_conversation(&conn, conversation.course_id, conversation_id, conversation.section_id)?;
     if completion_used > 0 || !estimated {
         ai::record_usage(&conn, profile.id, "chat", prompt_used, completion_used, estimated)?;
     }
@@ -231,41 +255,41 @@ pub async fn run_turn(
     Ok(message)
 }
 
-/// Puts the mandatory material first and renumbers retrieved sources after it.
+/// Puts the mandatory material first (its sources stay pinned in the answer)
+/// and renumbers the retrieved sources after it.
 pub fn merge_primary(primary: BuiltContext, extra: BuiltContext) -> BuiltContext {
-    let mut sources = primary.sources.clone();
-    let mut text = primary.text.clone();
-    let offset = sources.len();
-    let known: Vec<i64> = sources.iter().map(|s| s.chunk_id).collect();
-    let mut renumbered = extra.text.clone();
+    let pinned = primary.sources.len();
+    let known: Vec<i64> = primary.sources.iter().map(|s| s.chunk_id).collect();
+    let mut mapping: std::collections::HashMap<String, String> = std::collections::HashMap::new();
     let mut extra_sources = Vec::new();
     for source in extra.sources.into_iter().filter(|s| !known.contains(&s.chunk_id)) {
-        let label = format!("S{}", offset + extra_sources.len() + 1);
-        renumbered = renumbered
-            .replace(&format!("<<<资料 {} |", source.label), &format!("<<<资料 {label} |"))
-            .replace(&format!("<<<{} 结束>>>", source.label), &format!("<<<{label} 结束>>>"));
+        let label = format!("S{}", pinned + extra_sources.len() + 1);
+        mapping.insert(source.label.clone(), label.clone());
         extra_sources.push(context::SourceRef { label, ..source });
     }
-    if !extra_sources.is_empty() {
-        // Keep only fences of sources that survived deduplication.
-        let kept: String = renumbered
-            .split("<<<资料 ")
-            .filter(|part| !part.trim().is_empty())
-            .filter(|part| extra_sources.iter().any(|s| part.starts_with(&format!("{} |", s.label))))
-            .map(|part| format!("<<<资料 {part}"))
-            .collect();
-        text.push_str("【相关补充资料】\n");
-        text.push_str(&kept);
+    if extra_sources.is_empty() {
+        return BuiltContext { pinned, ..primary };
     }
+    // Relabel fence by fence (a global replace could rename a label twice).
+    let mut text = primary.text;
+    text.push_str("【相关补充资料】\n");
+    for part in extra.text.split("<<<资料 ").filter(|p| !p.trim().is_empty()) {
+        let Some((old, rest)) = part.split_once(" |") else { continue };
+        let Some(new) = mapping.get(old) else { continue };
+        let rest = rest.replace(&format!("<<<{old} 结束>>>"), &format!("<<<{new} 结束>>>"));
+        text.push_str(&format!("<<<资料 {new} |{rest}"));
+    }
+    let mut sources = primary.sources;
     sources.extend(extra_sources);
     BuiltContext {
-        mode_used: primary.mode_used,
+        mode_used: extra.mode_used,
         tokens: primary.tokens + extra.tokens,
         text,
         sources,
-        material_tokens: primary.material_tokens.max(extra.material_tokens),
-        truncated: primary.truncated,
+        material_tokens: extra.material_tokens,
+        truncated: extra.truncated,
         notice: primary.notice.or(extra.notice),
+        pinned,
     }
 }
 
@@ -278,7 +302,9 @@ pub fn qa_plan(_conn: &Connection, conversation: &super::Conversation, question:
         retrieval_query: question.to_string(),
         scope: conversation.scope.clone(),
         primary: None,
+        retrieve: true,
         meta: json!({ "action": "ask" }),
+        after: None,
     })
 }
 
@@ -405,6 +431,29 @@ mod tests {
         assert_eq!(message.status, "cancelled");
         assert!(!message.content.is_empty() && message.content.chars().count() < 4);
         test_support::cleanup(paths);
+    }
+
+    #[test]
+    fn merged_material_is_relabelled_fence_by_fence() {
+        let chunk = |id: i64, text: &str| crate::search::ChunkHit {
+            chunk_id: id, document_id: 1, filename: "讲义.pdf".into(), section_id: None, section_title: None, chunk_index: id,
+            page_start: id, page_end: id, loc_label: format!("第 {id} 页"), content: text.into(), score: 0.0,
+        };
+        let (text, sources) = context::render(&[chunk(10, "甲"), chunk(11, "乙")], 1);
+        let primary = BuiltContext { mode_used: "lesson".into(), text, sources, ..Default::default() };
+        // Retrieval returned 11 again (duplicate) plus 12 and 13, labelled S1–S3.
+        let (text, sources) = context::render(&[chunk(11, "乙"), chunk(12, "丙"), chunk(13, "丁")], 1);
+        let extra = BuiltContext { mode_used: "rag".into(), text, sources, ..Default::default() };
+        let merged = merge_primary(primary, extra);
+        assert_eq!(merged.pinned, 2);
+        assert_eq!(merged.sources.iter().map(|s| (s.label.as_str(), s.chunk_id)).collect::<Vec<_>>(), vec![("S1", 10), ("S2", 11), ("S3", 12), ("S4", 13)]);
+        assert!(merged.text.contains("<<<资料 S3 | 讲义.pdf · 第 12 页>>>\n丙\n<<<S3 结束>>>"));
+        assert!(merged.text.contains("<<<资料 S4 | 讲义.pdf · 第 13 页>>>\n丁\n<<<S4 结束>>>"));
+        assert_eq!(merged.text.matches("乙").count(), 1);
+        assert_eq!(merged.mode_used, "rag");
+        // Nothing new retrieved: the lesson material stands alone.
+        let alone = merge_primary(BuiltContext { mode_used: "lesson".into(), sources: merged.sources[..1].to_vec(), ..Default::default() }, BuiltContext::default());
+        assert_eq!((alone.mode_used.as_str(), alone.pinned), ("lesson", 1));
     }
 
     #[tokio::test]

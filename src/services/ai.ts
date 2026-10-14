@@ -3,6 +3,7 @@ import type {
   ChatEvent, ContextMode, Conversation, ConversationDetail, ConversationScope, Message, ModelProfile,
   ProfileInput, SaveProfileResult, TestReport, TutorMode, UsageSummary
 } from '@/types/ai'
+import type { LessonPart, StartTeachingInput, TeachAction } from '@/types/study'
 
 export const ModelService = {
   list: () => invoke<ModelProfile[]>('list_model_profiles'),
@@ -30,16 +31,30 @@ export interface ConversationUpdate {
   profile_id?: number
 }
 
+/** Teaching action for learn / review / sprint conversations (default: a question). */
+export interface SendOptions {
+  action?: TeachAction
+  target?: number
+}
+
 export const ChatService = {
   list: (courseId: number) => invoke<Conversation[]>('list_conversations', { courseId }),
   create: (input: NewConversation) => invoke<Conversation>('create_conversation', { input }),
   get: (id: number) => invoke<ConversationDetail>('get_conversation', { id }),
   update: (input: ConversationUpdate) => invoke<Conversation>('update_conversation', { input }),
   remove: (id: number) => invoke<void>('delete_conversation', { id }),
-  send: (conversationId: number, content: string, onEvent: (event: ChatEvent) => void, regenerate = false) => {
+  send: (conversationId: number, content: string, onEvent: (event: ChatEvent) => void, regenerate = false, options: SendOptions = {}) => {
     const channel = new Channel<ChatEvent>()
     channel.onmessage = onEvent
-    return invoke<Message>('send_message', { input: { conversation_id: conversationId, content, regenerate }, onEvent: channel })
+    const input = { conversation_id: conversationId, content, regenerate, action: options.action ?? null, target: options.target ?? null }
+    return invoke<Message>('send_message', { input, onEvent: channel })
   },
   cancel: (requestId: string) => invoke<boolean>('cancel_generation', { requestId })
+}
+
+export const TeachingService = {
+  /** Opens (or creates) the teaching conversation for a chapter / video and mode. */
+  start: (input: StartTeachingInput) => invoke<Conversation>('start_teaching', { input }),
+  outline: (conversationId: number) => invoke<LessonPart[]>('get_lesson_outline', { conversationId }),
+  markFinished: (conversationId: number) => invoke<Conversation>('mark_lesson_finished', { conversationId })
 }

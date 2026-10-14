@@ -56,6 +56,22 @@
           <label v-if="document.file_type === 'pdf'" class="flex items-center gap-1.5 text-xs text-slate-600">
             <input v-model="previewAll" type="checkbox" class="accent-indigo-600" />显示原页面
           </label>
+          <div v-if="courseId" class="flex gap-1">
+            <RouterLink
+              :to="{ name: 'learn', params: { id: courseId }, query: { mode: 'learn', section: active.id } }"
+              class="btn btn-soft btn-sm"
+              title="让 AI 从零讲解这一节"
+            >
+              <AcademicCapIcon class="size-4" />AI 讲解
+            </RouterLink>
+            <RouterLink
+              :to="{ name: 'notes', params: { id: courseId }, query: { new: 1, doc: document.id, page: currentPage ?? active.page_start, section: active.id } }"
+              class="btn btn-secondary btn-sm"
+              title="记一条关联到当前位置的笔记"
+            >
+              <PencilSquareIcon class="size-4" />记笔记
+            </RouterLink>
+          </div>
           <div class="flex gap-1">
             <button class="btn btn-ghost btn-sm" :disabled="!previous" title="上一节" @click="previous && selectSection(previous)">
               <ChevronLeftIcon class="size-4" />
@@ -101,7 +117,7 @@
 
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
-import { ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon } from '@heroicons/vue/20/solid'
+import { AcademicCapIcon, ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon, PencilSquareIcon } from '@heroicons/vue/20/solid'
 import SectionTree from './SectionTree.vue'
 import PageCard from './PageCard.vue'
 import ImageViewer from './ImageViewer.vue'
@@ -118,6 +134,8 @@ const props = defineProps<{
   page?: number | null
   terms?: string[]
   busy?: boolean
+  /** Enables the "AI 讲解" and "记笔记" shortcuts. */
+  courseId?: number
 }>()
 const emit = defineEmits<{ reprocess: []; delete: []; 'visible-page': [page: number] }>()
 
@@ -133,6 +151,8 @@ const jumpTo = ref<number | null>(null)
 const previewAll = ref(false)
 const scroller = ref<HTMLElement>()
 const viewing = ref<{ image: ImageInfo; label: string } | null>(null)
+/** Top-most visible unit (for notes taken while reading). */
+const currentPage = ref<number | null>(null)
 const terms = computed(() => props.terms ?? [])
 
 const jumpable = computed(() => props.document.loc_kind === 'page' || props.document.loc_kind === 'slide')
@@ -226,7 +246,9 @@ function observePages() {
     }
     clearTimeout(visibleTimer)
     visibleTimer = setTimeout(() => {
-      if (visibleUnits.size) emit('visible-page', Math.min(...visibleUnits))
+      if (!visibleUnits.size) return
+      currentPage.value = Math.min(...visibleUnits)
+      emit('visible-page', currentPage.value)
     }, 800)
   }, { root: scroller.value, threshold: 0.15 })
   scroller.value.querySelectorAll('[id^="unit-"]').forEach(el => observer!.observe(el))

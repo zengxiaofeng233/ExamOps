@@ -7,11 +7,16 @@ mod context;
 mod database;
 mod documents;
 mod error;
+mod knowledge;
 mod models;
+mod notes;
+mod paths;
+mod resources;
 mod search;
 mod security;
 mod settings;
 mod sidecar;
+mod study;
 mod tutor;
 #[cfg(test)]
 mod test_support;
@@ -88,6 +93,37 @@ fn main() {
             commands::ai::delete_conversation,
             commands::ai::send_message,
             commands::ai::cancel_generation,
+            commands::ai::start_teaching,
+            commands::ai::get_lesson_outline,
+            commands::ai::mark_lesson_finished,
+            commands::study::list_knowledge_points,
+            commands::study::save_knowledge_point,
+            commands::study::delete_knowledge_point,
+            commands::study::set_knowledge_point_difficult,
+            commands::study::set_knowledge_point_status,
+            commands::study::generate_knowledge_points,
+            commands::study::extract_knowledge_points,
+            commands::study::list_learning_paths,
+            commands::study::get_learning_path,
+            commands::study::save_learning_path,
+            commands::study::delete_learning_path,
+            commands::study::activate_learning_path,
+            commands::study::create_path_from_template,
+            commands::study::recommend_learning_path,
+            commands::study::save_path_step,
+            commands::study::delete_path_step,
+            commands::study::reorder_path_steps,
+            commands::study::set_path_step_status,
+            commands::study::list_resources,
+            commands::study::save_resource,
+            commands::study::delete_resource,
+            commands::study::save_resource_mark,
+            commands::study::delete_resource_mark,
+            commands::study::list_notes,
+            commands::study::save_note,
+            commands::study::delete_note,
+            commands::study::get_study_state,
+            commands::study::save_reading_position,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

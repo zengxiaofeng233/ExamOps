@@ -98,7 +98,9 @@ class ParserTests(unittest.TestCase):
     def test_text_and_markdown_without_ocr(self):
         with patch.object(Ocr, 'lines', side_effect=AssertionError('Text must not start OCR')):
             self.assertIn('繁體中文', parse_document(self.folder / '中文资料.txt'))
-            self.assertIn('# 学习笔记', parse_document(self.folder / '笔记.md'))
+            notes = parse_document(self.folder / '笔记.md')
+            self.assertTrue(notes.startswith('学习笔记'), notes)  # heading text without "#"
+            self.assertIn('正文内容', notes)
             self.assertIn('中文课程资料', parse_document(self.folder / '旧编码.txt'))
             self.assertIn('Native title', parse_document(self.folder / '文字.pdf'))
 

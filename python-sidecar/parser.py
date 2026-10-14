@@ -380,6 +380,8 @@ def parse_text(path, markdown, progress, max_lines=40):
             match = MD_HEADING.match(line)
             if match:
                 heading = len(match.group(1))
+                # Chapter titles and the reader show the heading without its "#" marks.
+                line = match.group(2).strip()
             elif (re.fullmatch(r"\s{0,3}(=+|-+)\s*", line) and current and len(current) == 1
                   and current[0][0].strip() and index > 0):
                 # Setext heading: previous single line underlined with === or ---.

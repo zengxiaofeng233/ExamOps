@@ -75,7 +75,7 @@ pub struct ContextRequest<'a> {
 
 #[derive(Debug, Clone, Serialize, Default)]
 pub struct BuiltContext {
-    /// full | rag
+    /// full | rag | lesson (only the material being taught) | none
     pub mode_used: String,
     pub text: String,
     pub sources: Vec<SourceRef>,
@@ -83,6 +83,8 @@ pub struct BuiltContext {
     pub material_tokens: usize,
     pub truncated: bool,
     pub notice: Option<String>,
+    /// Leading sources that are always shown with the answer (the taught material).
+    pub pinned: usize,
 }
 
 const HEADER_TOKENS: usize = 24;
@@ -216,6 +218,7 @@ pub fn build(conn: &Connection, request: &ContextRequest<'_>) -> AppResult<Built
             notice: truncated.then(|| {
                 format!("资料约 {material_tokens} tokens，超出模型上下文预算，仅提供了前 {} 段；建议使用“自动”或“检索”模式", chosen.len())
             }),
+            pinned: 0,
         });
     }
 
@@ -256,7 +259,7 @@ pub fn build(conn: &Connection, request: &ContextRequest<'_>) -> AppResult<Built
     } else {
         render(&chosen, 1)
     };
-    Ok(BuiltContext { mode_used: "rag".into(), tokens: used, text, sources, material_tokens, truncated: false, notice })
+    Ok(BuiltContext { mode_used: "rag".into(), tokens: used, text, sources, material_tokens, truncated: false, notice, pinned: 0 })
 }
 
 /// Source labels cited in an answer, in order of first appearance.
@@ -275,14 +278,19 @@ pub fn cited_labels(answer: &str) -> Vec<String> {
     out
 }
 
-/// Marks cited sources; in full mode only cited ones are kept (the rest is the whole book).
-pub fn finalize_sources(mut sources: Vec<SourceRef>, answer: &str, mode_used: &str) -> Vec<SourceRef> {
+/// Marks cited sources; in full mode only cited ones are kept (the rest is the
+/// whole book), except the first `pinned` ones (material being taught).
+pub fn finalize_sources(mut sources: Vec<SourceRef>, answer: &str, mode_used: &str, pinned: usize) -> Vec<SourceRef> {
     let cited = cited_labels(answer);
     for source in &mut sources {
         source.cited = cited.contains(&source.label);
     }
     if mode_used == "full" {
-        sources.retain(|s| s.cited);
+        let mut index = 0;
+        sources.retain(|s| {
+            index += 1;
+            s.cited || index <= pinned
+        });
     }
     sources
 }
@@ -348,10 +356,13 @@ mod tests {
                 page_start: 1, page_end: 1, loc_label: "第 1 页".into(), excerpt: String::new(), cited: false,
             })
             .collect::<Vec<_>>();
-        let rag = finalize_sources(sources.clone(), "见 [S2]", "rag");
+        let rag = finalize_sources(sources.clone(), "见 [S2]", "rag", 0);
         assert_eq!(rag.iter().filter(|s| s.cited).count(), 1);
         assert_eq!(rag.len(), 3);
-        let full = finalize_sources(sources, "见 [S2]", "full");
+        let full = finalize_sources(sources.clone(), "见 [S2]", "full", 0);
         assert_eq!(full.len(), 1);
+        // Pinned (taught) material stays listed even when not cited.
+        let lesson = finalize_sources(sources, "见 [S3]", "full", 1);
+        assert_eq!(lesson.iter().map(|s| (s.label.as_str(), s.cited)).collect::<Vec<_>>(), vec![("S1", false), ("S3", true)]);
     }
 }

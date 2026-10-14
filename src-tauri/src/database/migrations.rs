@@ -37,6 +37,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "ai_gateway",
         sql: include_str!("../../migrations/0004_ai_gateway.sql"),
     },
+    Migration {
+        version: 5,
+        name: "learning",
+        sql: include_str!("../../migrations/0005_learning.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

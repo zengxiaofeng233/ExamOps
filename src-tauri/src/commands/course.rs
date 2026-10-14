@@ -4,15 +4,16 @@ use crate::models::course::{Course, CreateCourseInput, UpdateCourseInput};
 use rusqlite::Connection;
 use tauri::AppHandle;
 
-const COURSE_COLUMNS: &str = "id, name, description, created_at, updated_at";
+const COURSE_COLUMNS: &str = "id, name, description, exam_date, created_at, updated_at";
 
 fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Course> {
     Ok(Course {
         id: row.get(0)?,
         name: row.get(1)?,
         description: row.get(2)?,
-        created_at: row.get(3)?,
-        updated_at: row.get(4)?,
+        exam_date: row.get(3)?,
+        created_at: row.get(4)?,
+        updated_at: row.get(5)?,
     })
 }
 
@@ -80,6 +81,16 @@ pub fn update_course(app_handle: AppHandle, input: UpdateCourseInput) -> AppResu
             "UPDATE courses SET description = ?1, updated_at = datetime('now', 'localtime') WHERE id = ?2",
             rusqlite::params![description.trim(), input.id],
         )?;
+    }
+    if let Some(date) = &input.exam_date {
+        let date = date.trim();
+        let value = if date.is_empty() {
+            None
+        } else {
+            chrono::NaiveDate::parse_from_str(date, "%Y-%m-%d").map_err(|_| AppError::invalid("考试日期格式应为 YYYY-MM-DD"))?;
+            Some(date.to_string())
+        };
+        conn.execute("UPDATE courses SET exam_date = ?1 WHERE id = ?2", rusqlite::params![value, input.id])?;
     }
     find(&conn, input.id)
 }

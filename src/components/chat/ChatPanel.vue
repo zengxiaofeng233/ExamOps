@@ -18,7 +18,7 @@
           <option value="rag">检索</option>
         </select>
       </label>
-      <div v-if="showScope" ref="scopeBox" class="relative">
+      <div v-if="showScope && conversation?.mode === 'qa'" ref="scopeBox" class="relative">
         <button class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50" :aria-expanded="scopeOpen" @click="scopeOpen = !scopeOpen">
           资料：{{ scopeLabel }}
         </button>
@@ -65,7 +65,7 @@
 
     <div class="border-t border-slate-200 bg-slate-50 px-4 py-3">
       <div class="mx-auto max-w-3xl">
-        <slot name="actions" :busy="busy" :send="send" :conversation="conversation" />
+        <slot name="actions" :busy="busy" :send="send" :conversation="conversation" :ready="!!conversation && models.configured" />
         <ChatComposer
           ref="composer"
           :busy="busy"
@@ -84,7 +84,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import ChatMessage from './ChatMessage.vue'
 import ChatComposer from './ChatComposer.vue'
-import { ChatService } from '@/services/ai'
+import { ChatService, type SendOptions } from '@/services/ai'
 import { DocumentService } from '@/services/document'
 import { useModelStore } from '@/stores/models'
 import { useToastStore } from '@/stores/toast'
@@ -96,8 +96,6 @@ const props = withDefaults(defineProps<{
   courseId: number
   placeholder?: string
   showScope?: boolean
-  /** Optional sender for teaching actions (defaults to plain questions). */
-  sender?: (conversationId: number, content: string, onEvent: (e: ChatEvent) => void, regenerate: boolean) => Promise<Message>
 }>(), { showScope: true })
 const emit = defineEmits<{ updated: [conversation: Conversation]; answered: [message: Message] }>()
 
@@ -223,8 +221,12 @@ function onEvent(event: ChatEvent) {
   }
 }
 
-async function run(content: string, regenerate: boolean) {
+async function run(content: string, regenerate: boolean, options: SendOptions = {}) {
   if (!conversation.value || busy.value) return
+  if (!models.configured) {
+    toast.error('尚未配置 AI 模型，请先在设置中添加')
+    return
+  }
   busy.value = true
   reasoning.value = ''
   if (regenerate) {
@@ -233,8 +235,7 @@ async function run(content: string, regenerate: boolean) {
     if (lastUser) messages.value = messages.value.filter(m => m.id <= lastUser.id)
   }
   try {
-    const sender = props.sender ?? ChatService.send
-    const message = await sender(conversation.value.id, content, onEvent, regenerate)
+    const message = await ChatService.send(conversation.value.id, content, onEvent, regenerate, options)
     emit('answered', message)
     const detail = await ChatService.get(conversation.value.id)
     applyConversation(detail.conversation)
@@ -252,8 +253,9 @@ async function run(content: string, regenerate: boolean) {
   }
 }
 
-function send(content: string) {
-  return run(content, false)
+/** A question, or a teaching action such as `{ action: 'continue' }`. */
+function send(content: string, options: SendOptions = {}) {
+  return run(content, false, options)
 }
 
 function regenerate() {
@@ -265,8 +267,13 @@ async function stop() {
 }
 
 function openSource(source: SourceRef) {
+  // Video material (subtitles / notes the student pasted) lives on the 网课 page.
+  if (source.document_id === 0 && source.chunk_id < 0) {
+    router.push({ name: 'videos', params: { id: props.courseId }, query: { r: -source.chunk_id } })
+    return
+  }
   router.push({ name: 'documents', params: { id: props.courseId }, query: { doc: source.document_id, page: source.page_start } })
 }
 
-defineExpose({ send, reload: load, setDraft: (text: string) => composer.value?.setText(text) })
+defineExpose({ send, busy, reload: load, setDraft: (text: string) => composer.value?.setText(text) })
 </script>

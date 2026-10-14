@@ -245,11 +245,11 @@ pub fn build(pages: &[ParsedPage], loc_kind: &str, title: &str) -> Structure {
             cursor = section.parent;
         }
     }
-    let ends: Vec<i64> = structure.sections.iter().map(|s| s.page_end).collect();
-    for index in 0..structure.sections.len() {
-        let mut cursor = structure.sections[index].parent;
+    let ends: Vec<(Option<usize>, i64)> = structure.sections.iter().map(|s| (s.parent, s.page_end)).collect();
+    for (parent, end) in ends {
+        let mut cursor = parent;
         while let Some(parent) = cursor {
-            structure.sections[parent].page_end = structure.sections[parent].page_end.max(ends[index]);
+            structure.sections[parent].page_end = structure.sections[parent].page_end.max(end);
             cursor = structure.sections[parent].parent;
         }
     }
@@ -257,8 +257,42 @@ pub fn build(pages: &[ParsedPage], loc_kind: &str, title: &str) -> Structure {
 }
 
 /// Tables that point at `document_sections`; their references survive re-parsing.
-/// Later stages register their tables here.
-pub const SECTION_REFERENCES: &[(&str, &str)] = &[];
+pub const SECTION_REFERENCES: &[(&str, &str)] = &[
+    ("knowledge_points", "section_id"),
+    ("resources", "section_id"),
+    ("path_steps", "section_id"),
+    ("conversations", "section_id"),
+    ("notes", "section_id"),
+    ("study_state", "current_section_id"),
+];
+
+/// Conversation scopes store section ids inside JSON; keep them pointing at
+/// the re-created sections.
+fn remap_conversation_scopes(tx: &Transaction, remapped: &HashMap<i64, i64>) -> rusqlite::Result<()> {
+    if remapped.is_empty() {
+        return Ok(());
+    }
+    let scoped: Vec<(i64, String)> = {
+        let mut stmt = tx.prepare("SELECT id, scope FROM conversations WHERE scope LIKE '%section_ids\":[_%'")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    for (id, scope) in scoped {
+        let Ok(mut value) = serde_json::from_str::<serde_json::Value>(&scope) else { continue };
+        let Some(sections) = value.get_mut("section_ids").and_then(|v| v.as_array_mut()) else { continue };
+        let mut changed = false;
+        for section in sections.iter_mut() {
+            if let Some(new_id) = section.as_i64().and_then(|old| remapped.get(&old)) {
+                *section = serde_json::json!(new_id);
+                changed = true;
+            }
+        }
+        if changed {
+            tx.execute("UPDATE conversations SET scope = ?1 WHERE id = ?2", params![value.to_string(), id])?;
+        }
+    }
+    Ok(())
+}
 
 fn section_key(level: i64, title: &str) -> String {
     format!("{level}:{}", title.chars().filter(|c| c.is_alphanumeric()).collect::<String>().to_lowercase())
@@ -308,6 +342,7 @@ pub fn store(tx: &Transaction, document_id: i64, title: &str, extraction: &Extra
             by_key.entry(section_key(section.level as i64, &section.title)).or_default().push(ids[index]);
         }
         let mut used: HashMap<String, usize> = HashMap::new();
+        let mut remapped: HashMap<i64, i64> = HashMap::new();
         for (old_id, level, title, page_start) in &old {
             let key = section_key(*level, title);
             let occurrence = used.entry(key.clone()).or_insert(0);
@@ -326,8 +361,10 @@ pub fn store(tx: &Transaction, document_id: i64, title: &str, extraction: &Extra
                 for (table, column) in SECTION_REFERENCES {
                     tx.execute(&format!("UPDATE {table} SET {column} = ?1 WHERE {column} = ?2"), params![new_id, old_id])?;
                 }
+                remapped.insert(*old_id, new_id);
             }
         }
+        remap_conversation_scopes(tx, &remapped)?;
         let old_ids: Vec<String> = old.iter().map(|o| o.0.to_string()).collect();
         tx.execute(
             &format!("DELETE FROM document_sections WHERE document_id = ?1 AND id IN ({})", old_ids.join(",")),

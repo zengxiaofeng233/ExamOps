@@ -77,6 +77,17 @@ export interface SourceRef {
   cited: boolean
 }
 
+/** 从零学习 progress over the lesson parts of a chapter or video transcript. */
+export interface TeachProgress {
+  /** Index of the next part to teach. */
+  next: number
+  parts: number
+  last: number | null
+  taught: number[]
+  skipped: number[]
+  finished: boolean
+}
+
 export interface Conversation {
   id: number
   course_id: number
@@ -89,14 +100,30 @@ export interface Conversation {
   updated_at: string
   message_count: number
   last_message: string | null
+  section_id: number | null
+  section_title: string | null
+  step_id: number | null
+  resource_id: number | null
+  resource_title: string | null
+  progress: TeachProgress
 }
 
 export type MessageStatus = 'done' | 'streaming' | 'cancelled' | 'error'
 
+/** What a teaching turn did (stored on both the student's and the AI's message). */
+export interface PlanMeta {
+  action?: string
+  target?: number | null
+  /** Lesson part taught in this turn. */
+  part?: number | null
+  parts?: number
+}
+
 export interface MessageMeta {
   profile?: string
   model?: string
-  context_mode?: 'full' | 'rag' | 'none'
+  context_mode?: 'full' | 'rag' | 'lesson' | 'none'
+  plan?: PlanMeta
   context_tokens?: number
   material_tokens?: number
   context_truncated?: boolean
