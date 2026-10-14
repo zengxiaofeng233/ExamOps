@@ -10,6 +10,16 @@ use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 use tokio_util::sync::CancellationToken;
 
+/// Pause before the single retry of a transient failure.
+const RETRY_DELAY: Duration = Duration::from_millis(1500);
+
+/// Network errors, rate limits and 5xx are worth one more try; everything else
+/// (wrong key, unknown model, bad request) needs the student to change something.
+fn is_transient(error: &GatewayError) -> bool {
+    matches!(error, GatewayError::Network(_) | GatewayError::RateLimited { .. })
+        || matches!(error, GatewayError::Server { status, .. } if (500..600).contains(status))
+}
+
 #[derive(Debug, Clone, Serialize, PartialEq)]
 pub struct ChatMessage {
     pub role: String,
@@ -190,6 +200,18 @@ impl Gateway {
         };
         let response = match self.send(profile, messages, options, true, cancel).await {
             Ok(response) => response,
+            // Nothing has been shown yet, so a transient failure gets one quiet retry.
+            // A stream that breaks after text arrived is never repeated.
+            Err(error) if is_transient(&error) => {
+                tokio::select! {
+                    _ = cancel.cancelled() => return finish(completion, Some(GatewayError::Cancelled)),
+                    _ = tokio::time::sleep(RETRY_DELAY) => {}
+                }
+                match self.send(profile, messages, options, true, cancel).await {
+                    Ok(response) => response,
+                    Err(error) => return finish(completion, Some(error)),
+                }
+            }
             Err(error) => return finish(completion, Some(error)),
         };
         let is_sse = response
@@ -293,15 +315,13 @@ impl Gateway {
                 }
                 Err(error) => {
                     // One retry for transient failures (network, rate limit, 5xx).
-                    let retryable = matches!(error, GatewayError::Network(_) | GatewayError::RateLimited { .. })
-                        || matches!(error, GatewayError::Server { status, .. } if (500..600).contains(&status));
-                    if attempt > 0 || !retryable {
+                    if attempt > 0 || !is_transient(&error) {
                         return Err(error);
                     }
                     attempt += 1;
                     tokio::select! {
                         _ = cancel.cancelled() => return Err(GatewayError::Cancelled),
-                        _ = tokio::time::sleep(Duration::from_millis(1500)) => {}
+                        _ = tokio::time::sleep(RETRY_DELAY) => {}
                     }
                 }
             }
@@ -391,6 +411,78 @@ mod tests {
         assert!(body.get("max_tokens").is_none() && body["max_completion_tokens"] == 512);
         assert!(body.get("temperature").is_none() && body.get("top_p").is_none());
         assert_eq!(body["response_format"]["type"], "json_object");
+    }
+
+    use crate::test_support::{MockReply, MockServer};
+
+    fn profile(endpoint: String, timeout_secs: u64) -> super::super::profiles::ResolvedProfile {
+        super::super::profiles::ResolvedProfile {
+            id: None, name: "t".into(), endpoint, model: "m".into(), api_key: Some("sk-test".into()),
+            temperature: 0.3, top_p: None, max_output_tokens: 64, context_window: 8000, timeout_secs, json_mode: false,
+        }
+    }
+
+    fn ask() -> [ChatMessage; 1] {
+        [ChatMessage::user("hi")]
+    }
+
+    #[tokio::test]
+    async fn transient_server_errors_are_retried_once() {
+        let server = MockServer::start(vec![MockReply::Status(503, "busy".into()), MockReply::Json("恢复了".into())]).await;
+        let gateway = Gateway::new();
+        let completion = gateway.complete(&profile(format!("{}/chat/completions", server.url()), 10), &ask(), &ChatOptions::default(), &CancellationToken::new()).await.unwrap();
+        assert_eq!(completion.text, "恢复了");
+        assert_eq!(server.request_count(), 2);
+    }
+
+    #[tokio::test]
+    async fn streams_retry_once_before_any_text_but_never_after() {
+        let gateway = Gateway::new();
+        let flaky = MockServer::start(vec![MockReply::Status(502, "bad gateway".into()), MockReply::Stream(vec!["你", "好"])]).await;
+        let outcome = gateway.stream(&profile(format!("{}/chat/completions", flaky.url()), 10), &ask(), &ChatOptions::default(), &CancellationToken::new(), |_| {}).await;
+        assert_eq!((outcome.error, outcome.completion.text.as_str()), (None, "你好"));
+        assert_eq!(flaky.request_count(), 2);
+        // The student already saw part of the answer: no silent second attempt.
+        let dropped = MockServer::start(vec![MockReply::StreamThenDrop(vec!["一半"]), MockReply::Stream(vec!["重来"])]).await;
+        let outcome = gateway.stream(&profile(format!("{}/chat/completions", dropped.url()), 10), &ask(), &ChatOptions::default(), &CancellationToken::new(), |_| {}).await;
+        assert!(matches!(outcome.error, Some(GatewayError::Interrupted(_))), "{:?}", outcome.error);
+        assert_eq!(outcome.completion.text, "一半");
+        assert_eq!(dropped.request_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn rate_limits_and_auth_errors_explain_what_to_do() {
+        let server = MockServer::start(vec![MockReply::Status(429, r#"{"error":{"message":"quota exceeded"}}"#.into())]).await;
+        let gateway = Gateway::new();
+        let error = gateway.complete(&profile(format!("{}/chat/completions", server.url()), 10), &ask(), &ChatOptions::default(), &CancellationToken::new()).await.unwrap_err();
+        assert!(matches!(error, GatewayError::RateLimited { .. }));
+        assert!(error.to_string().contains("请求过于频繁或账户额度不足") && error.to_string().contains("quota exceeded"));
+        assert_eq!(server.request_count(), 2);
+        // 401 is not retried.
+        let auth = MockServer::start(vec![MockReply::Status(401, "bad key".into())]).await;
+        let error = gateway.complete(&profile(format!("{}/chat/completions", auth.url()), 10), &ask(), &ChatOptions::default(), &CancellationToken::new()).await.unwrap_err();
+        assert!(error.to_string().contains("API Key 无效"));
+        assert_eq!(auth.request_count(), 1);
+    }
+
+    #[tokio::test]
+    async fn unreachable_servers_and_silent_streams_fail_with_clear_messages() {
+        // Nothing listens on this port.
+        let port = std::net::TcpListener::bind("127.0.0.1:0").unwrap().local_addr().unwrap().port();
+        let gateway = Gateway::new();
+        let offline = profile(format!("http://127.0.0.1:{port}/v1/chat/completions"), 10);
+        let outcome = gateway.stream(&offline, &ask(), &ChatOptions::default(), &CancellationToken::new(), |_| {}).await;
+        let error = outcome.error.unwrap();
+        assert!(matches!(error, GatewayError::Network(_)), "{error:?}");
+        assert!(error.to_string().starts_with("无法连接到 AI 服务"));
+
+        // A stream that stops sending is cut off after the idle timeout; text so far is kept.
+        let slow = MockServer::start(vec![MockReply::Slow(vec!["先到", "很久之后"], 1600)]).await;
+        let outcome = gateway.stream(&profile(format!("{}/chat/completions", slow.url()), 1), &ask(), &ChatOptions::default(), &CancellationToken::new(), |_| {}).await;
+        assert_eq!(outcome.error, Some(GatewayError::Timeout));
+        let slow = MockServer::start(vec![MockReply::Slow(vec!["一"], 2500)]).await;
+        let error = gateway.complete(&profile(format!("{}/chat/completions", slow.url()), 1), &ask(), &ChatOptions::default(), &CancellationToken::new()).await.unwrap_err();
+        assert_eq!(error, GatewayError::Timeout);
     }
 
     #[test]

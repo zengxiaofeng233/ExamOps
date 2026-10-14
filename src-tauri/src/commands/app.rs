@@ -39,18 +39,21 @@ fn dir_size(path: &Path) -> u64 {
         .sum()
 }
 
+/// 应用设置。
 #[tauri::command]
 pub fn get_app_settings(app_handle: AppHandle) -> AppResult<AppSettings> {
     let conn = database::get_connection(&app_handle)?;
     settings::load(&conn)
 }
 
+/// 保存应用设置（数值会被校正到允许范围）。
 #[tauri::command]
 pub fn update_app_settings(app_handle: AppHandle, settings: AppSettings) -> AppResult<AppSettings> {
     let conn = database::get_connection(&app_handle)?;
     settings::save(&conn, settings)
 }
 
+/// 版本、数据目录、数据库与资料占用、数据库结构版本。
 #[tauri::command]
 pub fn get_app_info(app_handle: AppHandle, paths: State<'_, AppPaths>) -> AppResult<AppInfo> {
     let conn = paths.connect()?;
@@ -66,6 +69,7 @@ pub fn get_app_info(app_handle: AppHandle, paths: State<'_, AppPaths>) -> AppRes
     })
 }
 
+/// 在资源管理器中打开数据目录。
 #[tauri::command]
 pub fn open_data_dir(app_handle: AppHandle) -> AppResult<()> {
     let paths = app_handle.state::<AppPaths>();
@@ -75,7 +79,7 @@ pub fn open_data_dir(app_handle: AppHandle) -> AppResult<()> {
         .map_err(|e| AppError::msg(format!("无法打开数据目录：{e}")))
 }
 
-/// Opens an http(s) link (AI answer, course video) in the system browser.
+/// 在系统浏览器中打开 http(s) 链接（AI 回答中的链接、网课）。
 #[tauri::command]
 pub fn open_external_url(app_handle: AppHandle, url: String) -> AppResult<()> {
     let parsed = url::Url::parse(url.trim()).map_err(|_| AppError::invalid("链接无效"))?;
@@ -88,6 +92,7 @@ pub fn open_external_url(app_handle: AppHandle, url: String) -> AppResult<()> {
         .map_err(|e| AppError::msg(format!("无法打开链接：{e}")))
 }
 
+/// 记住当前页面（下次启动时恢复）。
 #[tauri::command]
 pub fn save_last_location(app_handle: AppHandle, location: LastLocation) -> AppResult<()> {
     if !location.path.starts_with('/') || location.path.len() > 500 {
@@ -101,6 +106,7 @@ pub fn save_last_location(app_handle: AppHandle, location: LastLocation) -> AppR
     settings::set_value(&conn, LAST_LOCATION_KEY, &stamped)
 }
 
+/// 上次所在的页面。
 #[tauri::command]
 pub fn get_last_location(app_handle: AppHandle) -> AppResult<Option<LastLocation>> {
     let conn = database::get_connection(&app_handle)?;
@@ -120,4 +126,14 @@ pub fn get_last_location(app_handle: AppHandle) -> AppResult<Option<LastLocation
         },
         None => None,
     })
+}
+
+/// 随软件分发的第三方组件许可证（THIRD_PARTY_NOTICES.md，随安装包安装）。
+#[tauri::command]
+pub fn get_third_party_notices(app_handle: AppHandle) -> AppResult<String> {
+    let path = app_handle
+        .path()
+        .resolve("THIRD_PARTY_NOTICES.md", tauri::path::BaseDirectory::Resource)
+        .map_err(|e| AppError::msg(format!("无法定位许可声明文件：{e}")))?;
+    std::fs::read_to_string(&path).map_err(|e| AppError::msg(format!("无法读取许可声明文件：{e}")))
 }

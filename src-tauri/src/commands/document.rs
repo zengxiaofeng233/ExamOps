@@ -45,24 +45,28 @@ fn data_url(path: &Path) -> AppResult<String> {
     Ok(format!("data:{mime};base64,{}", base64::engine::general_purpose::STANDARD.encode(bytes)))
 }
 
+/// 课程的资料列表。
 #[tauri::command]
 pub fn get_documents(app_handle: AppHandle, course_id: i64) -> AppResult<Vec<Document>> {
     let conn = database::get_connection(&app_handle)?;
     documents::list(&conn, course_id)
 }
 
+/// 单份资料。
 #[tauri::command]
 pub fn get_document(app_handle: AppHandle, id: i64) -> AppResult<Document> {
     let conn = database::get_connection(&app_handle)?;
     documents::get(&conn, id)
 }
 
+/// 资料全部页面拼接成的纯文本。
 #[tauri::command]
 pub fn get_document_content(app_handle: AppHandle, id: i64) -> AppResult<String> {
     let conn = database::get_connection(&app_handle)?;
     documents::body(&conn, id)
 }
 
+/// 导入资料：复制、解析、建立章节与索引，通过 Channel 回传进度。
 #[tauri::command]
 pub async fn import_document(
     paths: State<'_, AppPaths>,
@@ -89,6 +93,7 @@ pub async fn import_document(
     .await
 }
 
+/// 重新解析资料（失败时保留原结果，章节引用自动迁移）。
 #[tauri::command]
 pub async fn reprocess_document(
     paths: State<'_, AppPaths>,
@@ -101,7 +106,7 @@ pub async fn reprocess_document(
     let previous = {
         let conn = paths.connect()?;
         let document = documents::get(&conn, id)?;
-        if !Path::new(&document.file_path).exists() {
+        if !documents::locate_copy(&paths.documents_dir, &document).is_file() {
             return Err(AppError::msg("应用内的资料副本已丢失，请删除后重新导入"));
         }
         documents::mark_processing(&conn, id)?;
@@ -113,6 +118,7 @@ pub async fn reprocess_document(
     .await
 }
 
+/// 删除资料及其章节、片段和图片（原文件不受影响）。
 #[tauri::command]
 pub async fn delete_document(paths: State<'_, AppPaths>, tasks: State<'_, DocumentTasks>, id: i64) -> AppResult<()> {
     let _guard = tasks.0.lock().await;
@@ -124,12 +130,14 @@ pub async fn delete_document(paths: State<'_, AppPaths>, tasks: State<'_, Docume
     .await?
 }
 
+/// 资料的章节树。
 #[tauri::command]
 pub fn get_document_sections(app_handle: AppHandle, document_id: i64) -> AppResult<Vec<Section>> {
     let conn = database::get_connection(&app_handle)?;
     documents::sections(&conn, document_id)
 }
 
+/// 课程全部资料的章节（用于章节选择）。
 #[tauri::command]
 pub fn get_course_sections(app_handle: AppHandle, course_id: i64) -> AppResult<Vec<CourseSection>> {
     let conn = database::get_connection(&app_handle)?;
@@ -145,12 +153,14 @@ pub fn get_course_sections(app_handle: AppHandle, course_id: i64) -> AppResult<V
     Ok(result)
 }
 
+/// 指定范围的页面 / 单元内容。
 #[tauri::command]
 pub fn get_document_pages(app_handle: AppHandle, document_id: i64, start: i64, end: i64) -> AppResult<Vec<PageView>> {
     let conn = database::get_connection(&app_handle)?;
     documents::pages(&conn, document_id, start, end)
 }
 
+/// PDF 原页面预览图（data URL，按需渲染并缓存）。
 #[tauri::command]
 pub async fn get_page_preview(
     paths: State<'_, AppPaths>,
@@ -164,16 +174,18 @@ pub async fn get_page_preview(
     data_url(&file)
 }
 
+/// 提取出的图片（data URL）。
 #[tauri::command]
-pub fn get_document_image(app_handle: AppHandle, id: i64) -> AppResult<String> {
-    let conn = database::get_connection(&app_handle)?;
-    let path = documents::image_path(&conn, id)?;
+pub fn get_document_image(paths: State<'_, AppPaths>, id: i64) -> AppResult<String> {
+    let conn = paths.connect()?;
+    let path = documents::image_path(&conn, &paths.documents_dir, id)?;
     if !path.exists() {
         return Err(AppError::msg("图片文件已丢失，可重新解析该资料"));
     }
     data_url(&path)
 }
 
+/// 课程内关键词检索，返回带高亮的片段和原文位置。
 #[tauri::command]
 pub fn search_course(
     app_handle: AppHandle,

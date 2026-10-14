@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-full min-h-0">
     <!-- Library -->
-    <aside v-show="!libraryHidden || !documents.length" class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:w-72">
+    <aside v-show="showLibrary" class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:w-72">
       <div class="space-y-2 border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" :disabled="importing" @click="importFiles">
           <ArrowUpTrayIcon class="size-4" />{{ importing ? '正在导入…' : '导入资料' }}
@@ -40,8 +40,8 @@
           v-if="documents.length"
           type="button"
           class="btn btn-ghost btn-sm"
-          :title="libraryHidden ? '显示资料列表' : '隐藏资料列表'"
-          :aria-pressed="!libraryHidden"
+          :title="showLibrary ? '隐藏资料列表' : '显示资料列表'"
+          :aria-pressed="showLibrary"
           @click="toggleLibrary"
         >
           <Bars3Icon class="size-4" />
@@ -139,13 +139,29 @@ function readFlag(key: string) {
   try { return localStorage.getItem(key) === '1' } catch { return false }
 }
 
+// The smallest window (800 px) cannot show the library, the chapter tree and the page side by
+// side, so in narrow windows the library folds away while a document is open (not remembered).
+const NARROW = '(max-width: 1100px)'
+const narrow = ref(false)
+const libraryOpenWhenNarrow = ref(false)
+let narrowQuery: MediaQueryList | null = null
+const syncNarrow = () => { narrow.value = narrowQuery?.matches ?? false }
+
 function toggleLibrary() {
+  if (narrow.value) {
+    libraryOpenWhenNarrow.value = !showLibrary.value
+    return
+  }
   libraryHidden.value = !libraryHidden.value
   try { localStorage.setItem(LIBRARY_KEY, libraryHidden.value ? '1' : '0') } catch { /* storage unavailable */ }
 }
 
 const selectedId = computed(() => Number(route.query.doc) || null)
 const selected = computed(() => documents.value.find(d => d.id === selectedId.value) ?? null)
+const showLibrary = computed(() => {
+  if (!documents.value.length) return true
+  return narrow.value ? libraryOpenWhenNarrow.value || !selected.value : !libraryHidden.value
+})
 
 let poll: ReturnType<typeof setInterval> | undefined
 let reportedPage: number | null = null
@@ -155,6 +171,9 @@ async function refresh() {
 }
 
 onMounted(async () => {
+  narrowQuery = window.matchMedia(NARROW)
+  syncNarrow()
+  narrowQuery.addEventListener('change', syncNarrow)
   try {
     await refresh()
     targetPage.value = Number(route.query.page) || null
@@ -171,7 +190,10 @@ onMounted(async () => {
   }
 })
 
-onBeforeUnmount(() => clearInterval(poll))
+onBeforeUnmount(() => {
+  clearInterval(poll)
+  narrowQuery?.removeEventListener('change', syncNarrow)
+})
 // Keep the page that owns the sequential import queue alive until it is finished.
 onBeforeRouteLeave(() => !importing.value)
 
@@ -186,6 +208,7 @@ watch(() => [route.query.doc, route.query.page], ([, page]) => {
 })
 
 function openDocument(id: number, page?: number) {
+  libraryOpenWhenNarrow.value = false
   searchResult.value = null
   targetPage.value = page ?? null
   reportedPage = targetPage.value

@@ -36,7 +36,7 @@
       <div v-if="detail" class="mx-auto max-w-4xl space-y-4 p-5">
         <header class="card p-5">
           <div class="flex flex-wrap items-start gap-3">
-            <div class="min-w-0 flex-1">
+            <div class="min-w-40 flex-1">
               <p class="flex flex-wrap items-center gap-2">
                 <span class="badge" :class="MODE_CLASSES[detail.path.mode]">{{ MODE_LABELS[detail.path.mode] }}</span>
                 <span class="text-xs text-slate-400">{{ ORIGIN_LABELS[detail.path.origin] ?? '' }}</span>
@@ -108,7 +108,6 @@
                   <button v-if="canOpen(step)" class="btn btn-primary btn-sm" @click="openStep(step)">
                     <PlayIcon class="size-3.5" />{{ step.status === 'in_progress' ? '继续' : '开始' }}
                   </button>
-                  <span v-else-if="step.kind === 'quiz'" class="btn btn-secondary btn-sm cursor-not-allowed opacity-50" title="测验功能将在下一阶段提供">开始</span>
                   <button class="btn btn-secondary btn-sm" @click="setStatus(step, 'done')"><CheckIcon class="size-3.5" />完成</button>
                   <button class="btn btn-ghost btn-sm" @click="setStatus(step, 'skipped')">跳过</button>
                 </template>

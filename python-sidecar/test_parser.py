@@ -1,3 +1,4 @@
+import io
 import json
 from pathlib import Path
 import subprocess
@@ -5,15 +6,16 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+import zipfile
 
 from PIL import Image, ImageDraw, ImageFont
-from PyPDF2 import PdfWriter
+from PyPDF2 import PdfReader, PdfWriter
 from PyPDF2.generic import DictionaryObject, NameObject, NumberObject, DecodedStreamObject
 from docx import Document
 from pptx import Presentation
 from pptx.util import Inches
 
-from parser import Ocr, parse_document
+from parser import DocumentError, Ocr, decode_text, parse_document, parse_structured
 
 CJK_FONTS = [
     'C:/Windows/Fonts/msyh.ttc',
@@ -144,6 +146,69 @@ class ParserTests(unittest.TestCase):
         self.assertEqual(ready['status'], 'ready')
         self.assertEqual(body['status'], 'success')
         self.assertIn('繁體中文', body['content'])
+
+
+
+class EncodingTests(unittest.TestCase):
+    def test_chinese_legacy_encodings_are_detected(self):
+        text = '第一章 函数与极限\n函数是两个非空数集之间的对应关系，极限描述变化趋势。\n' * 3
+        self.assertEqual(decode_text(text.encode('utf-8')), text)
+        self.assertEqual(decode_text(('\ufeff' + text).encode('utf-8')), text)
+        self.assertEqual(decode_text(text.encode('gb18030')), text)
+        traditional = '第一章 函數與極限\n函數是兩個非空數集之間的對應關係，極限描述變化趨勢。\n' * 3
+        self.assertEqual(decode_text(traditional.encode('big5')), traditional)
+
+    def test_binary_garbage_is_rejected_or_decoded_without_crashing(self):
+        try:
+            decode_text(bytes(range(256)) * 4)
+        except DocumentError as error:
+            self.assertIn('编码', str(error))
+
+
+class AbnormalFileTests(unittest.TestCase):
+    """Files students really import: half-downloaded, renamed, restricted or oddly shaped.
+    (Password-protected PDFs and the JSON error protocol are covered in test_structure.py.)"""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.directory = tempfile.TemporaryDirectory(prefix='examops-abnormal-')
+        folder = cls.folder = Path(cls.directory.name)
+        make_pdf(folder / '原版.pdf', pages=2)
+        restricted = PdfWriter()
+        for page in PdfReader(str(folder / '原版.pdf')).pages:
+            restricted.add_page(page)
+        restricted.encrypt('', owner_password='owner')
+        with open(folder / '仅限制编辑.pdf', 'wb') as file:
+            restricted.write(file)
+        whole = (folder / '原版.pdf').read_bytes()
+        (folder / '下载中断.pdf').write_bytes(whole[:len(whole) // 2])
+        (folder / '改了扩展名.docx').write_text('这其实是一个文本文件', encoding='utf-8')
+        archive = io.BytesIO()
+        with zipfile.ZipFile(archive, 'w') as bundle:
+            bundle.writestr('readme.txt', 'not a presentation')
+        (folder / '不是课件.pptx').write_bytes(archive.getvalue())
+        (folder / '只有空行.md').write_text(' \n\n\t\n', encoding='utf-8')
+        (folder / '超长一行.txt').write_text('函数的极限' * 200_000, encoding='utf-8')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.directory.cleanup()
+
+    def parse(self, name):
+        return parse_structured(self.folder / name, str(self.folder / 'figures'))
+
+    def test_editing_restrictions_alone_do_not_block_reading(self):
+        # Owner password only (no password needed to open): imported normally.
+        self.assertEqual(len(self.parse('仅限制编辑.pdf')['pages']), 2)
+
+    def test_broken_or_renamed_files_fail_with_a_reason(self):
+        for name, reason in [('下载中断.pdf', '已损坏'), ('改了扩展名.docx', '旧版 .doc'),
+                             ('不是课件.pptx', '旧版 .ppt'), ('只有空行.md', '未提取到正文')]:
+            with self.subTest(name=name), self.assertRaisesRegex(DocumentError, reason):
+                self.parse(name)
+
+    def test_a_huge_single_line_is_kept_whole(self):
+        self.assertEqual(len(self.parse('超长一行.txt')['content']), 1_000_000)
 
 
 if __name__ == '__main__':

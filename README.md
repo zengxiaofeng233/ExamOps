@@ -1,164 +1,108 @@
 # ExamOps
 
-AI 智能学习桌面应用
+基于个人学习资料的 AI 智能复习桌面软件（Windows）。
 
-## 项目简介
+导入自己的教材、PPT、讲义和网课笔记，用自己配置的 AI 模型按章节讲解、回答问题、出题测验，并根据掌握情况安排复习。单用户、本地运行：没有账号，没有云端存储，所有数据只保存在本机。
 
-ExamOps 是一款面向学生的 Windows 本地 AI 智能学习软件。允许用户导入本地教材、PPT、PDF、Word 等课程资料，通过自行配置的 AI 模型进行知识点讲解、教材问答、章节学习、笔记整理以及考前复习。
+## 功能
+
+- **资料**：导入 PDF（含扫描版，本地 OCR）、Word、PPT、TXT、Markdown；自动识别章节、提取图片，保留页码 / 幻灯片 / 段落 / 行号位置；全文检索，阅读器支持原页面预览。
+- **AI 问答**：回答只依据你的资料，区分【教材】【补充】【推导】并标注来源编号，点击可跳到原文；流式输出，可随时停止、重新生成。
+- **AI 学习**：从零学习（分段讲解、每段停下来等你）、正常复习（先回忆再纠正）、考前冲刺（必考点与典型题）；也可以根据你提供的字幕和笔记讲解网课。
+- **知识点与学习路径**：从章节标题或用 AI 生成知识点；按章节生成、AI 推荐或手动安排学习路径，可拖动排序、插入、跳过。
+- **测验**：单选、判断、简答、自由复述、情景应用五种题型；客观题自动判分，主观题 AI 批改并给出反馈，失败时可重新批改或自评。
+- **复习**：掌握度与间隔复习（临近考试自动缩短间隔）、薄弱知识点、错题本与错题重练、下一步建议和 AI 复习建议。
+- **网课与笔记**：保存网课链接、字幕、时间戳；笔记支持 Markdown 和公式，并关联资料位置、章节和知识点。
+- **BYOK**：任何兼容 OpenAI Chat Completions 的接口（DeepSeek、通义千问、智谱、Kimi、OpenAI、Ollama 本机模型等）；API Key 保存在 Windows 凭据管理器中。
+
+## 界面
+
+| 资料阅读 | AI 学习 |
+| --- | --- |
+| ![资料阅读：章节目录与正文](docs/images/reader.png) | ![AI 学习：分段讲解与来源标注](docs/images/learn.png) |
+| **测验结果** | **复习** |
+| ![测验结果：得分与知识点掌握情况](docs/images/quiz.png) | ![复习：复习概况、下一步建议与错题本](docs/images/review.png) |
+
+截图中的 AI 内容来自本地模拟服务（`scripts/mock_ai.py`），实际使用时由你配置的模型生成。
+
+## 文档
+
+| 文档 | 内容 |
+| --- | --- |
+| [安装与首次使用](docs/INSTALL.md) | 系统要求、安装、配置模型、数据位置与备份、卸载、常见问题 |
+| [使用指南](docs/USER_GUIDE.md) | 每个页面和功能的用法 |
+| [架构](docs/ARCHITECTURE.md) | 七个引擎、数据模型、主要流程、安全设计 |
+| [命令参考](docs/API.md) | 前端调用的全部 Tauri 命令 |
+| [测试](docs/TESTING.md) | 自动化测试、异常 / 断网 / 持久化测试、模拟 AI 服务、发布前验收 |
+| [更新日志](CHANGELOG.md) | 按路线图阶段记录的变更 |
+| [开发路线图 V1.4](dev_roadmap/v1.4.md) | 需求与阶段划分 |
 
 ## 技术栈
 
-- **前端**: Vue 3 + TypeScript + Vite + Tailwind CSS 4
-- **桌面框架**: Tauri 2
-- **后端**: Rust
-- **数据库**: SQLite (带 FTS5 全文检索)
-- **文档处理**: Python Sidecar
-- **状态管理**: Pinia
-- **路由**: Vue Router
+Tauri 2 · Vue 3 + TypeScript · Tailwind CSS 4 · Pinia · Rust · SQLite + FTS5 · Python Sidecar（PyInstaller 打包，RapidOCR + pypdfium2）· NSIS 安装包
 
-## 项目特点
+## 开发
 
-- ✅ 单用户本地应用，无需云端服务器
-- ✅ 用户自带 AI API (BYOK)
-- ✅ 所有数据本地存储
-- ✅ 支持多种文档格式 (PDF, PPTX, DOCX, TXT, Markdown)
-- ✅ 混合上下文策略 (全文 + RAG 检索)
-- ✅ 独立安装包，无需额外环境配置
+### 环境
 
-## 开发环境要求
+- Node.js 20+、Rust（stable）、Python 3.12 x64（只在开发和构建时需要，安装包已内置运行环境）
+- Windows 10/11；Rust 核心和前端也可以在 Linux / macOS 上开发和测试（Linux 需要 `libwebkit2gtk-4.1-dev` 等 Tauri 依赖）
 
-- Node.js >= 18
-- Rust >= 1.70
-- Python 3.12 x64（仅开发/构建需要；安装包已内置）
-- Windows 10/11
-
-## 快速开始
-
-### 1. 安装依赖
+### 常用命令
 
 ```bash
 npm install
+npm run tauri:dev        # 打包文档处理程序（首次会创建 python-sidecar/venv），然后启动开发模式
+npm run tauri -- dev     # 只改前端或 Rust 时使用，复用已打包的文档处理程序
+npm test                 # 前端单元测试；类型检查：npx vue-tsc --noEmit
+cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings
+cd python-sidecar && python -m unittest -v
 ```
 
-### 2. 开发模式
+没有 API Key 时可以用 `python scripts/mock_ai.py` 启动本地模拟 AI 服务，详见 [测试](docs/TESTING.md#3-本地模拟-ai-服务)。
+
+### 构建安装包
+
+安装包必须在 Windows x64 上构建：
 
 ```bash
-npm run tauri:dev
+npm run tauri:build      # 产物：src-tauri/target/release/bundle/nsis/ExamOps_<版本>_x64-setup.exe
 ```
 
-首次运行会在 `python-sidecar/venv` 创建隔离环境，安装依赖并打包本地文档处理程序。
-只调整前端或 Rust 时可使用 `npm run tauri -- dev`，复用已构建的 Sidecar。
+也可以在 GitHub Actions 中手动运行 **Windows installer** 工作流，或推送 `v*` 标签自动构建并创建草稿 Release。安装包内置文档处理程序、OCR 模型和 WebView2 离线安装程序，按当前用户安装，不需要管理员权限。
 
-### 3. 构建安装包
-
-```bash
-npm run tauri:build
-```
-
-产物位于 `src-tauri/target/release/bundle/nsis/`。Windows x64 安装包包含 Python、OCR 模型和
-WebView2 离线安装程序，使用端无需安装 Python，也无需下载 OCR 模型。构建端首次需要联网获取依赖。
-
-## 项目结构
+### 目录
 
 ```
 ExamOps/
-├── src/                       # Vue 前端
-│   ├── components/           # 组件
-│   ├── views/                # 页面视图
-│   ├── router/               # 路由配置
-│   ├── stores/               # Pinia 状态管理
-│   ├── services/             # 服务层
-│   └── types/                # TypeScript 类型定义
-│
-├── src-tauri/                # Tauri / Rust 后端
+├── src/                     # Vue 前端：views（页面）、components、stores（Pinia）、services（命令调用）、types、utils
+├── src-tauri/
 │   ├── src/
-│   │   ├── commands/         # Tauri 命令
-│   │   ├── database/         # 数据库模块
-│   │   ├── documents/        # 文档处理
-│   │   ├── context/          # 上下文引擎
-│   │   ├── models/           # 数据模型
-│   │   └── tutor/            # AI 教学引擎
-│   └── migrations/           # 数据库迁移
-│
-├── python-sidecar/           # Python 文档处理
-│   ├── parser/               # 文档解析器
-│   ├── chapter/              # 章节切分
-│   └── figures/              # 图片提取
-│
-└── shared/                   # 共享类型定义
-    └── contracts/
+│   │   ├── commands/        # Tauri 命令（前端唯一入口）
+│   │   ├── documents/       # Document Engine：导入、结构化、阅读、删除
+│   │   ├── search/          # FTS5 检索与中文分词
+│   │   ├── ai/              # 模型网关：OpenAI 兼容客户端、流式解析、错误映射、模型配置
+│   │   ├── context/         # Context Engine：全文 / 检索 / 自动
+│   │   ├── tutor/           # Tutor Engine：问答与分章教学
+│   │   ├── knowledge/ paths/ resources/ notes/ study/   # 知识点、学习路径、网课、笔记、学习状态
+│   │   ├── assessment/ mastery/ review/                 # 测验、掌握度与间隔复习、复习建议
+│   │   ├── database/        # 连接与版本化迁移
+│   │   └── security/        # API Key 存储
+│   └── migrations/          # 0001–0006 数据库迁移（只新增，不修改已发布的迁移）
+├── python-sidecar/          # 文档解析、章节识别、图片提取、OCR、页面渲染
+├── scripts/                 # 打包文档处理程序、生成命令参考与开源许可、模拟 AI 服务
+└── docs/
 ```
 
-## 核心功能模块
+### 开发规范
 
-### 第一阶段 (当前)
+- 每个功能在独立分支开发（`feat/*`），通过 Pull Request 合并；CI 在 Ubuntu 和 Windows 上运行全部测试。
+- 数据库结构只通过新增迁移文件修改（`src-tauri/migrations/` 新增文件并在 `database/migrations.rs` 中登记），旧数据自动升级。
+- 前后端数据结构统一定义：Rust 结构体与 `src/types` 中的 TypeScript 类型一一对应；新增命令时同步更新 `src/services` 并运行 `python scripts/command_reference.py` 更新命令参考。
+- 新增或升级依赖后运行 `python scripts/third_party_notices.py` 更新开源许可清单。
 
-- [x] 基础项目架构
-- [x] 课程管理 (CRUD)
-- [x] SQLite 数据库集成
-- [x] 文档导入功能（课程资料列表、独立副本、重启后保留）
-- [x] Python Sidecar 集成
-- [x] 正文提取与只读查看（本次确认纳入第一阶段）
-- [x] 本地 OCR 兜底（简体中文、繁体中文、英文，覆盖 PDF 混合页面）
+## 许可与致谢
 
-### 第二阶段
+ExamOps 以 [MIT 许可证](LICENSE) 发布。
 
-- [ ] 文档结构化解析与索引（基础正文提取已在第一阶段完成）
-- [ ] AI 模型配置
-- [ ] 基础问答功能
-- [ ] 学习状态管理
-
-### 第三阶段
-
-- [ ] RAG 检索优化
-- [ ] 章节式教学
-- [ ] 笔记系统
-- [ ] 数据导出
-
-## 开发约束
-
-- ❌ 不使用云端后端服务
-- ❌ 不开发账号系统
-- ❌ 不允许浏览器作为软件入口
-- ✅ 必须为独立 Windows 桌面程序
-- ✅ 用户自行配置 AI API
-- ✅ 数据完全本地存储
-
-## 第一阶段资料使用说明
-
-1. 在课程卡片点击“资料”，选择“导入资料”，可多选 PDF、DOCX、PPTX、TXT 或 Markdown。
-2. 每次导入独立保存，不按文件名覆盖或去重；不修改原文件。
-3. 点击资料查看提取后的纯文本。提取失败时展示原因，无正文不会标记为成功。
-4. PDF 逐页提取，有图片的页面和无文字页面执行 OCR；按位置排除已有文本层的重复文字。
-   Word 提取正文、表格和内嵌图片文字；PPT 提取文本框、表格和内嵌图片文字。
-5. OCR 模型在需要识别时加载，每个文件处理结束后退出进程。多文件依次处理，导入期间留在资料页。
-6. 删除课程会删除关联记录、应用内资料副本及正文；用户选择的原文件保留。
-
-正文保存为纯文本，不恢复原版式，也不承诺公式、手写或复杂表格的识别准确率。
-不提取讲者备注、批注；不增加独立图片导入、单独删除资料、全文检索或 AI 功能。
-应用中断时，未完成的资料在下次启动标记失败，可重新导入。
-
-## 验证命令
-
-```powershell
-npm run build
-npm run sidecar:build
-cargo test --manifest-path src-tauri/Cargo.toml
-python-sidecar/venv/Scripts/python.exe -m unittest discover -s python-sidecar -p "test_*.py" -v
-```
-
-Python 测试会生成临时样例，覆盖文本编码、五种格式、离线 OCR、混合页面去重、扫描多页、
-错误文件和进程通信。Rust 测试使用临时数据库和文件，验证重复导入、正文持久化、失败记录和删除边界。
-
-## 许可证
-
-MIT
-
-## 贡献
-
-欢迎提交 Issue 和 Pull Request！
-
-## 相关链接
-
-- 参考项目: [Universal ExamPrep Skill](https://github.com/ZeKaiNie/universal-examprep-skill)
-- 仓库地址: [ExamOps](https://github.com/zengxiaofeng233/ExamOps)
+学习方法设计（回答区分教材 / 补充 / 推导、按章节讲解、错题再练等）参考了 [Universal ExamPrep Skill](https://github.com/ZeKaiNie/universal-examprep-skill)（MIT 许可，Copyright (c) 2026 ZeKaiNie）。ExamOps 没有复制其源代码，其版权与许可声明保留在 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 中，该文件同时列出了所有随软件分发的开源组件及其许可证，并随安装包一起安装，也可以在应用的“设置 → 关于 → 查看开源许可”中查看。

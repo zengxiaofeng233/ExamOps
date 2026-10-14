@@ -836,7 +836,9 @@ mod tests {
 
     #[tokio::test]
     async fn a_learning_turn_advances_only_after_a_complete_answer() {
+        // The first turn fails even after the gateway's one automatic retry.
         let server = MockServer::start(vec![
+            MockReply::Status(500, "boom".into()),
             MockReply::Status(500, "boom".into()),
             MockReply::Stream(vec!["【教材】导数是变化率 [S1]"]),
         ])

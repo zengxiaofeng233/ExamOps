@@ -128,6 +128,27 @@ pub fn figures_dir(root: &Path, course_id: i64, document_id: i64) -> PathBuf {
     root.join(course_id.to_string()).join(format!("{document_id}_figures"))
 }
 
+/// Where the application copy of a document is created: named after
+/// application-owned ids, never after the user's file name.
+fn copy_path(root: &Path, course_id: i64, document_id: i64, file_type: &str) -> PathBuf {
+    root.join(course_id.to_string()).join(format!("{document_id}.{file_type}"))
+}
+
+/// The application copy of a document. The database stores absolute paths, so
+/// when the data folder has been restored on another computer or under another
+/// Windows user the stored path no longer exists; the copy is then found again
+/// under the current data directory.
+pub fn locate_copy(root: &Path, document: &Document) -> PathBuf {
+    let stored = PathBuf::from(&document.file_path);
+    if !stored.is_file() {
+        let derived = copy_path(root, document.course_id, document.id, &document.file_type);
+        if derived.is_file() {
+            return derived;
+        }
+    }
+    stored
+}
+
 pub fn stem(filename: &str) -> String {
     Path::new(filename)
         .file_stem()
@@ -175,8 +196,7 @@ pub fn prepare(conn: &mut Connection, root: &Path, course_id: i64, source: &Path
         ],
     )?;
     let id = tx.last_insert_rowid();
-    // Paths are derived from application-owned ids, never from source filenames.
-    let target = root.join(course_id.to_string()).join(format!("{id}.{file_type}"));
+    let target = copy_path(root, course_id, id, &file_type);
     tx.execute(
         "UPDATE documents SET file_path = ?1 WHERE id = ?2",
         params![target.to_string_lossy(), id],
@@ -248,7 +268,8 @@ pub async fn process(
     if staging.exists() {
         fs::remove_dir_all(&staging)?;
     }
-    let result = parse::run(Path::new(&document.file_path), &document.file_type, &staging, on_progress).await;
+    let source = locate_copy(&paths.documents_dir, &document);
+    let result = parse::run(&source, &document.file_type, &staging, on_progress).await;
     let mut conn = paths.connect()?;
     match result {
         Ok(mut extraction) => {
@@ -400,11 +421,26 @@ pub fn pages(conn: &Connection, document_id: i64, start: i64, end: i64) -> AppRe
     Ok(result)
 }
 
-pub fn image_path(conn: &Connection, image_id: i64) -> AppResult<PathBuf> {
-    let path: String = conn
-        .query_row("SELECT file_path FROM document_images WHERE id = ?1", [image_id], |r| r.get(0))
+/// An extracted figure; like [`locate_copy`], survives a relocated data folder.
+pub fn image_path(conn: &Connection, root: &Path, image_id: i64) -> AppResult<PathBuf> {
+    let (stored, document_id, course_id): (String, i64, i64) = conn
+        .query_row(
+            "SELECT i.file_path, i.document_id, d.course_id
+            FROM document_images i JOIN documents d ON d.id = i.document_id WHERE i.id = ?1",
+            [image_id],
+            |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)),
+        )
         .or_not_found("图片")?;
-    Ok(PathBuf::from(path))
+    let stored = PathBuf::from(stored);
+    if !stored.is_file() {
+        // Stored paths use the separators of the computer that wrote them.
+        let name = stored.to_string_lossy().rsplit(['/', '\\']).next().unwrap_or_default().to_string();
+        let derived = figures_dir(root, course_id, document_id).join(name);
+        if derived.is_file() {
+            return Ok(derived);
+        }
+    }
+    Ok(stored)
 }
 
 pub fn delete_document(conn: &mut Connection, paths: &crate::database::AppPaths, id: i64) -> AppResult<()> {
@@ -413,7 +449,7 @@ pub fn delete_document(conn: &mut Connection, paths: &crate::database::AppPaths,
     tx.execute("DELETE FROM documents WHERE id = ?1", [id])?;
     tx.commit()?;
     // Remove only application-owned copies; the user's original file is untouched.
-    let copy = PathBuf::from(&document.file_path);
+    let copy = locate_copy(&paths.documents_dir, &document);
     if copy.starts_with(&paths.documents_dir) && copy.exists() {
         fs::remove_file(&copy)?;
     }
@@ -469,7 +505,7 @@ pub async fn page_preview(
     let dir = paths.cache_dir.join("pages").join(document_id.to_string());
     let target = dir.join(format!("p{page}_w{width}.png"));
     if !target.exists() {
-        parse::render_pages(Path::new(&document.file_path), &[page], &dir, width).await?;
+        parse::render_pages(&locate_copy(&paths.documents_dir, &document), &[page], &dir, width).await?;
     }
     if !target.exists() {
         return Err(AppError::msg("页面预览生成失败"));
@@ -552,6 +588,43 @@ mod tests {
         assert!(get(&conn, 1).is_err());
         drop(conn);
         test_support::cleanup(paths);
+    }
+
+    #[test]
+    fn a_data_folder_restored_elsewhere_still_finds_copies_and_figures() {
+        let paths = temp_paths("relocate-old");
+        let source = paths.data_dir.join("讲义.txt");
+        fs::write(&source, "学习资料").unwrap();
+        let mut conn = paths.connect().unwrap();
+        conn.execute("INSERT INTO courses (name) VALUES ('课程')", []).unwrap();
+        let document = prepare(&mut conn, &paths.documents_dir, 1, &source).unwrap();
+        let figures = figures_dir(&paths.documents_dir, 1, document.id);
+        fs::create_dir_all(&figures).unwrap();
+        fs::write(figures.join("p1_1.png"), b"png").unwrap();
+        let mut extraction = sample_extraction();
+        let figure = figures.join("p1_1.png").to_string_lossy().into_owned();
+        extraction.images = vec![ParsedImage { page: 1, ordinal: 1, path: figure, width: 10, height: 10, ocr_text: String::new() }];
+        apply_extraction(&mut conn, document.id, &extraction).unwrap();
+        let image_id: i64 = conn.query_row("SELECT id FROM document_images", [], |r| r.get(0)).unwrap();
+        drop(conn);
+
+        // Backup copied to another computer / Windows user: same files, different absolute root.
+        let restored = temp_paths("relocate-new");
+        fs::remove_dir_all(&restored.data_dir).unwrap();
+        fs::rename(&paths.data_dir, &restored.data_dir).unwrap();
+        let mut conn = restored.connect().unwrap();
+        let moved = get(&conn, document.id).unwrap();
+        assert!(!Path::new(&moved.file_path).exists());
+        let copy = locate_copy(&restored.documents_dir, &moved);
+        assert!(copy.starts_with(&restored.documents_dir));
+        assert_eq!(fs::read_to_string(&copy).unwrap(), "学习资料");
+        let image = image_path(&conn, &restored.documents_dir, image_id).unwrap();
+        assert_eq!(fs::read(&image).unwrap(), b"png");
+        // Deleting still removes the application's copy at its new location.
+        delete_document(&mut conn, &restored, document.id).unwrap();
+        assert!(!copy.exists() && !figures_dir(&restored.documents_dir, 1, document.id).exists());
+        drop(conn);
+        test_support::cleanup(restored);
     }
 
     #[test]

@@ -338,14 +338,22 @@ def parse_pptx(path, ocr, figures, progress):
 # --------------------------------------------------------------------------- Text / Markdown
 
 def decode_text(data):
+    """UTF-8 first; otherwise detect the encoding (GBK/GB18030 and Big5 are common
+    for Chinese course notes). charset-normalizer is MIT-licensed."""
     try:
         return data.decode("utf-8-sig")
     except UnicodeDecodeError:
-        import chardet
-        encoding = chardet.detect(data)["encoding"]
-        if not encoding:
-            raise DocumentError("无法识别文本编码，请另存为 UTF-8 后导入")
-        return data.decode(encoding, errors="replace")
+        pass
+    from charset_normalizer import from_bytes
+    best = from_bytes(data).best()
+    if best is not None and best.encoding:
+        return str(best)
+    for encoding in ("gb18030", "big5"):
+        try:
+            return data.decode(encoding)
+        except UnicodeDecodeError:
+            continue
+    raise DocumentError("无法识别文本编码，请另存为 UTF-8 后导入")
 
 
 MD_HEADING = re.compile(r"^\s{0,3}(#{1,6})\s+(.+?)\s*#*\s*$")

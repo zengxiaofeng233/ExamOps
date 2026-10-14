@@ -1,0 +1,79 @@
+# Tests for every push and pull request (Roadmap §8: each stage must stay runnable and testable).
+name: CI
+
+on:
+  push:
+    branches: [main, "feat/**"]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (type check + unit tests)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx vue-tsc --noEmit
+      - run: npm test
+
+  sidecar:
+    name: Document sidecar (Python)
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: python-sidecar/requirements.txt
+      - name: Chinese fonts for test fixtures
+        run: sudo apt-get update && sudo apt-get install -y fonts-noto-cjk
+      - run: pip install -r python-sidecar/requirements.txt
+      - working-directory: python-sidecar
+        run: python -m unittest -v
+
+  rust:
+    name: Rust core (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: System libraries for Tauri (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Build the user interface (embedded by Tauri)
+        run: npm ci && npm run build
+      - name: Placeholder sidecar (Rust tests do not run the parser)
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries/_internal
+          triple=$(rustc -vV | sed -n 's/^host: //p')
+          ext=""; if [ "$RUNNER_OS" = "Windows" ]; then ext=".exe"; fi
+          touch "src-tauri/binaries/examops-parser-${triple}${ext}"
+      - run: cargo clippy --all-targets -- -D warnings
+        working-directory: src-tauri
+      - run: cargo test
+        working-directory: src-tauri

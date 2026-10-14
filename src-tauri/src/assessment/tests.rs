@@ -210,3 +210,53 @@ fn chapters_without_points_get_one_before_a_quiz() {
     drop(conn);
     test_support::cleanup(paths);
 }
+
+#[tokio::test]
+async fn a_study_session_survives_a_restart() {
+    let server = MockServer::start(vec![MockReply::Json(String::new())]).await;
+    let s = setup(&server);
+    let server = MockServer::start(vec![MockReply::Json(questions_for(s.point))]).await;
+    let mut conn = s.paths.connect().unwrap();
+    conn.execute("UPDATE model_profiles SET base_url = ?1", [server.url()]).unwrap();
+    // Learning path, lesson progress, reading position and an unfinished quiz.
+    let path = paths::from_template(&mut conn, paths::TemplateInput { course_id: 1, name: None, mode: None, document_ids: vec![], include_quiz: true }).unwrap();
+    let lesson = crate::tutor::teach::start(&conn, crate::tutor::teach::StartTeaching { course_id: 1, mode: "learn".into(), section_id: Some(s.chapter), resource_id: None, step_id: None }, crate::context::ContextMode::Auto).unwrap();
+    crate::tutor::save_progress(&conn, lesson.id, &crate::tutor::TeachProgress { next: 1, parts: 1, last: Some(0), taught: vec![0], skipped: vec![], finished: false }).unwrap();
+    crate::tutor::insert_message(&conn, lesson.id, "assistant", "讲到一半", "streaming", &[], &serde_json::Value::Null).unwrap();
+    study::note_reading(&conn, 1, 1, 3).unwrap();
+    drop(conn);
+    let quiz = create(&s.paths, &s.ai, CreateQuiz { course_id: 1, section_id: Some(s.chapter), ..Default::default() }).await.unwrap();
+    answer(&s.paths.connect().unwrap(), quiz.questions[1].id, Some("true"), false).unwrap();
+
+    // Restart: start-up migrations and recovery run again on the same files.
+    crate::database::init_database(&s.paths).unwrap();
+    let conn = s.paths.connect().unwrap();
+    assert_eq!(crate::tutor::recover_interrupted(&conn).unwrap(), 1);
+    let reopened = detail(&conn, quiz.quiz.id).unwrap();
+    assert_eq!((reopened.quiz.status.as_str(), reopened.quiz.current_index), ("ready", 1));
+    assert_eq!(reopened.questions[1].response.as_deref(), Some("true"));
+    assert!(reopened.questions.iter().all(|q| q.answer.is_none()));
+    let state = study::state(&conn, 1).unwrap();
+    assert_eq!((state.last_document_id, state.last_page), (Some(1), Some(3)));
+    assert_eq!(state.active_path.unwrap().id, path.path.id);
+    let restored = crate::tutor::get(&conn, lesson.id).unwrap();
+    assert_eq!(restored.progress.taught, vec![0]);
+    let interrupted = crate::tutor::messages(&conn, lesson.id).unwrap().pop().unwrap();
+    assert_eq!((interrupted.status.as_str(), interrupted.content.as_str()), ("error", "讲到一半"));
+    drop(conn);
+    test_support::cleanup(s.paths);
+}
+
+#[tokio::test]
+async fn unusable_ai_replies_store_nothing() {
+    let server = MockServer::start(vec![MockReply::Json(String::new())]).await;
+    let s = setup(&server);
+    let server = MockServer::start(vec![MockReply::Json("抱歉，我不能出题。".into()), MockReply::Status(500, "down".into())]).await;
+    s.paths.connect().unwrap().execute("UPDATE model_profiles SET base_url = ?1", [server.url()]).unwrap();
+    let error = create(&s.paths, &s.ai, CreateQuiz { course_id: 1, section_id: Some(s.chapter), ..Default::default() }).await.unwrap_err();
+    assert!(error.to_string().contains("AI 回复中没有找到题目数据"));
+    let error = create(&s.paths, &s.ai, CreateQuiz { course_id: 1, section_id: Some(s.chapter), ..Default::default() }).await.unwrap_err();
+    assert!(error.to_string().contains("AI 服务暂时不可用"));
+    assert!(list(&s.paths.connect().unwrap(), 1).unwrap().is_empty());
+    test_support::cleanup(s.paths);
+}

@@ -8,5 +8,6 @@ export const AppService = {
   openDataDir: () => invoke<void>('open_data_dir'),
   openExternal: (url: string) => invoke<void>('open_external_url', { url }),
   saveLocation: (location: LastLocation) => invoke<void>('save_last_location', { location }),
-  lastLocation: () => invoke<LastLocation | null>('get_last_location')
+  lastLocation: () => invoke<LastLocation | null>('get_last_location'),
+  notices: () => invoke<string>('get_third_party_notices')
 }

@@ -35,6 +35,7 @@
           <RouterLink :to="`/courses/${course.id}`" class="min-w-0 flex-1">
             <h3 class="truncate text-base font-semibold text-slate-900 group-hover:text-indigo-700" :title="course.name">{{ course.name }}</h3>
             <p class="mt-1.5 line-clamp-3 min-h-[1.25rem] text-sm text-slate-500">{{ course.description || '暂无简介' }}</p>
+            <p v-if="course.exam_date" class="mt-1 text-xs text-indigo-600">{{ examCountdown(course.exam_date) }}（{{ course.exam_date }}）</p>
           </RouterLink>
           <div class="mt-4 flex items-center justify-between gap-2">
             <span class="text-xs text-slate-400">更新于 {{ formatRelative(course.updated_at) }}</span>
@@ -57,6 +58,11 @@
         <div>
           <label class="label" for="course-desc">课程描述</label>
           <textarea id="course-desc" v-model="form.description" rows="4" class="input" placeholder="考试范围、任课老师、教材版本等（可选）" />
+        </div>
+        <div>
+          <label class="label" for="course-exam">考试日期（可选）</label>
+          <input id="course-exam" v-model="form.exam_date" type="date" class="input" />
+          <p class="hint">设置后，复习计划会在考前自动加密，考前冲刺也会参考剩余天数。</p>
         </div>
       </form>
       <template #footer>
@@ -91,6 +97,7 @@ import { useCourseStore } from '@/stores/course'
 import { useToastStore } from '@/stores/toast'
 import type { Course } from '@/types/models'
 import { formatRelative } from '@/utils/format'
+import { examCountdown } from '@/utils/study'
 
 const router = useRouter()
 const courseStore = useCourseStore()
@@ -101,7 +108,7 @@ const editing = ref<Course | null>(null)
 const courseToDelete = ref<Course | null>(null)
 const saving = ref(false)
 const deleting = ref(false)
-const form = reactive({ name: '', description: '' })
+const form = reactive({ name: '', description: '', exam_date: '' })
 
 onMounted(() => courseStore.fetchCourses().catch(() => undefined))
 
@@ -109,6 +116,7 @@ function openCreate() {
   editing.value = null
   form.name = ''
   form.description = ''
+  form.exam_date = ''
   dialogOpen.value = true
 }
 
@@ -116,6 +124,7 @@ function openEdit(course: Course) {
   editing.value = course
   form.name = course.name
   form.description = course.description
+  form.exam_date = course.exam_date ?? ''
   dialogOpen.value = true
 }
 
@@ -128,11 +137,12 @@ async function handleSubmit() {
   saving.value = true
   try {
     if (editing.value) {
-      await courseStore.updateCourse({ id: editing.value.id, name: form.name, description: form.description })
+      await courseStore.updateCourse({ id: editing.value.id, name: form.name, description: form.description, exam_date: form.exam_date })
       toast.success('课程已保存')
       closeDialog()
     } else {
       const course = await courseStore.createCourse(form.name, form.description)
+      if (form.exam_date) await courseStore.updateCourse({ id: course.id, exam_date: form.exam_date })
       closeDialog()
       toast.success('课程已创建，现在可以导入资料了')
       router.push(`/courses/${course.id}/documents`)

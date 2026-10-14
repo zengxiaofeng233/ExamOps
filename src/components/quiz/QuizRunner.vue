@@ -2,7 +2,7 @@
   <div class="mx-auto max-w-3xl space-y-4 p-5">
     <header class="card p-4">
       <div class="flex flex-wrap items-center gap-2">
-        <h2 class="min-w-0 flex-1 truncate text-base font-semibold text-slate-900" :title="quiz.title">{{ quiz.title }}</h2>
+        <h2 class="min-w-40 flex-1 truncate text-base font-semibold text-slate-900" :title="quiz.title">{{ quiz.title }}</h2>
         <span class="text-xs text-slate-500">已答 {{ answeredCount }}/{{ questions.length }}{{ quiz.allow_skip ? '' : ' · 不可跳过' }}</span>
       </div>
       <ol class="mt-3 flex flex-wrap gap-1.5" aria-label="题目导航">

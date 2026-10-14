@@ -1,167 +1,51 @@
-# ExamOps 快速启动指南
+# 快速上手
 
-## ✅ 项目已完成初始化
+只想使用 ExamOps：安装后按 [安装与首次使用](docs/INSTALL.md) 配置模型即可。下面是开发者从克隆到走通完整学习流程的最短路径。
 
-第一阶段基础架构已搭建完成并提交到 Git 仓库。
+## 1. 准备环境（Windows 10/11）
 
-## 🚀 下一步操作
+- Node.js 20+、Rust stable（含 MSVC 构建工具）、Python 3.12 x64
+- 克隆仓库后安装前端依赖：
 
-### 1. 运行开发模式（验证功能）
+```bash
+npm install
+```
+
+## 2. 启动开发模式
 
 ```bash
 npm run tauri:dev
 ```
 
-这将：
-- 启动 Vite 开发服务器 (端口 1420)
-- 启动 Tauri 应用窗口
-- 启用热更新
+首次运行会在 `python-sidecar/venv` 创建虚拟环境、安装依赖并用 PyInstaller 打包文档处理程序（需要几分钟）；之后只改前端或 Rust 时用 `npm run tauri -- dev` 跳过这一步。应用数据保存在 `%APPDATA%\com.examops.app`，可在 **设置 → 数据与存储** 中打开。
 
-**预期结果：**
-- 应用窗口打开
-- 显示"ExamOps"欢迎页面
-- 点击"开始使用"进入课程管理页面
-- 可以创建、编辑、删除课程
-- 数据持久化到本地 SQLite 数据库
+## 3. 不花钱接入 AI
 
-### 2. 构建 Windows 安装包
+另开一个终端启动本地模拟 AI 服务：
 
 ```bash
-npm run tauri:build
+python scripts/mock_ai.py
 ```
 
-**构建产物位置：**
-```
-src-tauri/target/release/bundle/nsis/
-```
+在 ExamOps 的 **设置 → AI 模型 → 添加模型** 中填写：接口地址 `http://127.0.0.1:18080/v1`，模型名称 `mock`，API Key `sk-test`，点击“测试连接”后保存。要用真实模型时，选择服务商预设并填入自己的 API Key。
 
-**安装包文件：**
-- `ExamOps_0.1.0_x64-setup.exe` - NSIS 安装程序
+## 4. 走一遍学习闭环
 
-### 3. 检查构建结果
+1. **我的课程 → 创建课程**，设置考试日期。
+2. **资料 → 导入资料**，选择一份教材 PDF 或讲义，等待解析完成；在阅读器中查看章节目录、原页面和检索。
+3. **知识点 → 从章节标题生成**（或 **AI 提取**）。
+4. **学习路径 → 新建学习路径 → 按章节生成**，勾选“每章结束后加入一次小测”。
+5. 在路径中点击第一步的“开始”，进入 **AI 学习**：继续讲解、举个例子、跳过下一部分，最后“标记已学完”。
+6. 按提示开始小测，作答并交卷，查看批改结果和掌握度。
+7. 打开 **复习**：查看复习队列、错题本和 AI 学习建议。
+8. 用 `curl http://127.0.0.1:18080/__fail/drop` 让模拟服务在回答中途断开，观察中断提示；`/__fail/none` 恢复。
+
+## 5. 提交前
 
 ```bash
-# 查看构建产物
-ls -lh src-tauri/target/release/bundle/nsis/
-
-# 查看可执行文件
-ls -lh src-tauri/target/release/exam-ops.exe
+npx vue-tsc --noEmit && npm test
+cd src-tauri && cargo clippy --all-targets -- -D warnings && cargo test
+cd ../python-sidecar && python -m unittest
 ```
 
-## 📁 项目结构概览
-
-```
-ExamOps/
-├── src/                    # Vue 3 前端
-│   ├── views/             # 页面：HomeView, CoursesView
-│   ├── stores/            # Pinia 状态：course.ts
-│   ├── services/          # API 调用：course.ts
-│   └── router/            # 路由配置
-│
-├── src-tauri/             # Rust 后端
-│   ├── src/
-│   │   ├── commands/      # Tauri 命令：course.rs
-│   │   ├── database/      # SQLite：schema.rs
-│   │   └── models/        # 数据模型：course.rs
-│   └── icons/             # 应用图标
-│
-├── python-sidecar/        # Python 文档处理（待实现）
-└── docs/                  # 项目文档
-```
-
-## 🧪 功能测试清单
-
-运行 `npm run tauri:dev` 后测试：
-
-- [ ] 应用正常启动
-- [ ] 主页显示正常
-- [ ] 导航到课程页面
-- [ ] 创建新课程
-- [ ] 编辑课程信息
-- [ ] 删除课程
-- [ ] 关闭应用后重新打开，数据仍然存在
-
-## 📊 当前完成度
-
-### ✅ 已完成
-- 项目初始化和配置
-- 前端界面框架
-- 后端 API 接口
-- 数据库设计和集成
-- 课程 CRUD 功能
-- 构建系统配置
-
-### ⏳ 待开发（第二阶段）
-- 文档导入功能
-- Python Sidecar 集成
-- 文档解析和索引
-- AI 模型配置
-- 问答功能
-- 学习状态管理
-
-## 🐛 已知问题
-
-1. **图标为临时占位符**
-   - 当前使用基础蓝色"E"字母图标
-   - 建议后续替换为正式设计图标
-
-2. **Rust 编译警告**
-   - 1 个未使用导入警告（不影响功能）
-   - 可运行 `cargo fix` 自动修复
-
-## 📝 Git 提交记录
-
-```bash
-# 查看提交记录
-git log --oneline
-
-# 推送到远程仓库
-git push origin main
-```
-
-## 🔗 相关链接
-
-- **仓库地址：** https://github.com/zengxiaofeng233/ExamOps
-- **Tauri 文档：** https://tauri.app/
-- **Vue 3 文档：** https://vuejs.org/
-- **参考项目：** https://github.com/ZeKaiNie/universal-examprep-skill
-
-## 💡 开发建议
-
-### 继续开发前
-1. 推送代码到 GitHub
-2. 验证开发模式正常运行
-3. 测试所有 CRUD 功能
-
-### 第二阶段准备
-1. 安装 Python 依赖
-   ```bash
-   pip install -r python-sidecar/requirements.txt
-   ```
-
-2. 设计文档导入界面
-3. 实现 Python Sidecar 通信
-4. 开发文档解析模块
-
-## ❓ 常见问题
-
-**Q: 开发模式启动慢？**
-A: 首次启动需要编译 Rust 代码，约 30-60 秒。后续启动会更快。
-
-**Q: 构建失败？**
-A: 确保已安装 Rust 工具链，运行 `rustc --version` 检查。
-
-**Q: 数据存储在哪里？**
-A: SQLite 数据库位于系统的应用数据目录：
-- Windows: `%APPDATA%\com.examops.app\examops.db`
-
-## 📞 支持
-
-遇到问题请查看：
-1. [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - 架构文档
-2. [docs/PHASE1_SUMMARY.md](docs/PHASE1_SUMMARY.md) - 阶段总结
-3. GitHub Issues
-
----
-
-**祝开发顺利！🎉**
+改了数据库结构时新增迁移文件（`src-tauri/migrations/000N_*.sql`）并在 `src-tauri/src/database/migrations.rs` 中登记，不要修改已发布的迁移；改了命令时运行 `python scripts/command_reference.py` 更新 [命令参考](docs/API.md)。更多说明见 [README](README.md) 和 [测试](docs/TESTING.md)。

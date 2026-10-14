@@ -5,7 +5,7 @@ python-pptx==1.0.2
 Pillow==11.1.0
 
 # 文本处理
-chardet==5.2.0
+charset-normalizer==3.5.2
 
 # 本地 OCR / PDF 页面渲染（模型随安装包分发）
 rapidocr==3.10.0

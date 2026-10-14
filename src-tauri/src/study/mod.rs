@@ -236,6 +236,51 @@ pub fn state(conn: &Connection, course_id: i64) -> AppResult<StudyState> {
     })
 }
 
+/// One course on the home page: progress, reviews due and the next step.
+#[derive(Debug, Clone, Serialize)]
+pub struct CourseDigest {
+    pub course_id: i64,
+    pub name: String,
+    pub exam_date: Option<String>,
+    pub days_to_exam: Option<i64>,
+    pub points: i64,
+    pub learned: i64,
+    pub mastered: i64,
+    pub due: usize,
+    pub weak: usize,
+    pub open_mistakes: i64,
+    pub next_step: Option<String>,
+    pub updated_at: String,
+}
+
+pub fn dashboard(conn: &Connection, today: chrono::NaiveDate) -> AppResult<Vec<CourseDigest>> {
+    let courses: Vec<(i64, String, String)> = {
+        let mut stmt = conn.prepare("SELECT id, name, updated_at FROM courses ORDER BY updated_at DESC, id DESC")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+        rows.collect::<rusqlite::Result<_>>()?
+    };
+    let mut out = Vec::new();
+    for (id, name, updated_at) in courses {
+        let queue = crate::mastery::queue(conn, id, today)?;
+        let state = state(conn, id)?;
+        out.push(CourseDigest {
+            course_id: id,
+            name,
+            exam_date: queue.summary.exam_date.clone(),
+            days_to_exam: queue.summary.days_to_exam,
+            points: state.counts.points,
+            learned: state.counts.points_learned,
+            mastered: state.counts.points_mastered,
+            due: queue.summary.due,
+            weak: queue.summary.weak,
+            open_mistakes: queue.summary.open_mistakes,
+            next_step: state.current_step.map(|s| s.title),
+            updated_at,
+        });
+    }
+    Ok(out)
+}
+
 /// Compact course map given to the AI when it plans a path.
 pub fn catalogue(conn: &Connection, course_id: i64) -> AppResult<String> {
     let mut out = String::from("【资料与章节】（[id] 标题 · 位置）\n");
@@ -312,6 +357,10 @@ mod tests {
         assert_eq!(moved.counts.steps_done, 1);
         let catalogue = catalogue(&conn, 1).unwrap();
         assert!(catalogue.contains("第二章 导数") && catalogue.contains("《高等数学讲义.pdf》"));
+        let digest = dashboard(&conn, chrono::Local::now().date_naive()).unwrap();
+        assert_eq!(digest.len(), 2);
+        let first = digest.iter().find(|d| d.course_id == 1).unwrap();
+        assert_eq!(first.next_step.as_deref(), Some(detail.steps[1].title.as_str()));
         drop(conn);
         test_support::cleanup(paths);
     }

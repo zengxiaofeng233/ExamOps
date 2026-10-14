@@ -44,7 +44,8 @@
 
       <section class="flex min-w-0 flex-1 flex-col bg-slate-50">
         <div v-if="active" class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
-          <div class="min-w-0 flex-1">
+          <!-- A minimum width makes the tools wrap below the title instead of squeezing it in narrow windows. -->
+          <div class="min-w-40 flex-1">
             <p class="truncate text-sm font-medium text-slate-800" :title="active.title">{{ active.title }}</p>
             <p class="text-xs text-slate-500">{{ active.loc_label }}</p>
           </div>

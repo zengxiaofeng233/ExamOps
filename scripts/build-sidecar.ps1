@@ -12,5 +12,8 @@ if ($LASTEXITCODE -ne 0) { throw 'Sidecar dependencies installation failed' }
 if ($LASTEXITCODE -ne 0) { throw 'Sidecar packaging failed' }
 $taskBinaries = Join-Path $taskRoot 'src-tauri/binaries'
 New-Item -ItemType Directory -Force -Path $taskBinaries | Out-Null
+# Start from a clean _internal so files from an older build are not shipped.
+$taskInternal = Join-Path $taskBinaries '_internal'
+if (Test-Path -LiteralPath $taskInternal) { Remove-Item -LiteralPath $taskInternal -Recurse -Force }
 Copy-Item -LiteralPath (Join-Path $taskSidecar 'dist/examops-parser/examops-parser.exe') -Destination (Join-Path $taskBinaries 'examops-parser-x86_64-pc-windows-msvc.exe') -Force
 Copy-Item -LiteralPath (Join-Path $taskSidecar 'dist/examops-parser/_internal') -Destination $taskBinaries -Recurse -Force

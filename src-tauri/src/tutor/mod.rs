@@ -274,7 +274,7 @@ pub fn touch(conn: &Connection, conversation_id: i64, first_question: Option<&st
 /// Messages left "streaming" by a crash or forced exit are marked as interrupted.
 pub fn recover_interrupted(conn: &Connection) -> AppResult<usize> {
     Ok(conn.execute(
-        "UPDATE messages SET status = 'error', error = '生成过程被中断（应用已关闭），可点击“重新生成”' WHERE status = 'streaming'",
+        "UPDATE messages SET status = 'error', error = '生成过程被中断（应用已关闭），可点击“重试”重新生成' WHERE status = 'streaming'",
         [],
     )?)
 }

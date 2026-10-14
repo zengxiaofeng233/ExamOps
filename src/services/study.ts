@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import type {
-  ExtractResult, KnowledgeInput, KnowledgePoint, LearningPath, MarkInput, Note, NoteInput, PathDetail, PathInput,
+  CourseDigest, ExtractResult, KnowledgeInput, KnowledgePoint, LearningPath, MarkInput, Note, NoteInput, PathDetail, PathInput,
   PathStep, RecommendInput, Resource, ResourceInput, StepInput, StepStatus, StudyState, TemplateInput
 } from '@/types/study'
 
@@ -45,6 +45,7 @@ export const NoteService = {
 
 export const StudyService = {
   state: (courseId: number) => invoke<StudyState>('get_study_state', { courseId }),
+  dashboard: () => invoke<CourseDigest[]>('get_dashboard'),
   saveReading: (courseId: number, documentId: number, page: number) =>
     invoke<void>('save_reading_position', { courseId, documentId, page })
 }

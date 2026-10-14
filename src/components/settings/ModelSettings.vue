@@ -12,7 +12,7 @@
       <EmptyState v-else-if="!models.profiles.length" title="还没有配置 AI 模型" description="添加一个兼容 OpenAI 的接口后，即可基于教材问答、AI 讲解和生成小测。" />
       <ul v-else class="mt-4 divide-y divide-slate-100 rounded-lg border border-slate-200">
         <li v-for="profile in models.profiles" :key="profile.id" class="flex flex-wrap items-center gap-3 px-4 py-3">
-          <div class="min-w-0 flex-1">
+          <div class="min-w-40 flex-1">
             <p class="flex items-center gap-2 text-sm font-medium text-slate-900">
               {{ profile.name }}
               <span v-if="profile.is_default" class="badge bg-indigo-50 text-indigo-700">默认</span>

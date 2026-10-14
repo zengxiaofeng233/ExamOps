@@ -93,7 +93,7 @@
           <template #after>
             <div v-if="suggestion" class="flex flex-wrap items-center gap-3 rounded-xl border border-indigo-200 bg-indigo-50/70 p-4" role="status">
               <ClipboardDocumentCheckIcon class="size-5 shrink-0 text-indigo-600" />
-              <p class="min-w-0 flex-1 text-sm text-indigo-900">{{ suggestion.text }}</p>
+              <p class="min-w-40 flex-1 text-sm text-indigo-900">{{ suggestion.text }}</p>
               <RouterLink :to="{ name: 'quiz', params: { id: course.id }, query: suggestion.query }" class="btn btn-primary btn-sm">开始小测</RouterLink>
               <button class="btn btn-ghost btn-sm" @click="suggestion = null">稍后</button>
             </div>

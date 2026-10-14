@@ -12,7 +12,10 @@
     "active": true,
     "targets": ["nsis"],
     "externalBin": ["binaries/examops-parser"],
-    "resources": { "binaries/_internal/": "_internal/" },
+    "resources": {
+      "binaries/_internal/": "_internal/",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md"
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
@@ -20,11 +23,25 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
+    "publisher": "ExamOps",
+    "copyright": "Copyright (c) 2026 Yuki Wong. MIT License.",
+    "category": "Education",
+    "shortDescription": "基于个人学习资料的 AI 智能复习桌面软件",
+    "longDescription": "导入教材、PPT、讲义和网课笔记，用自己配置的 AI 模型按章节讲解、问答、出题测验，并按掌握情况安排复习。所有数据保存在本机。",
+    "license": "MIT",
+    "licenseFile": "../LICENSE",
     "windows": {
       "webviewInstallMode": { "type": "offlineInstaller" },
       "certificateThumbprint": null,
       "digestAlgorithm": "sha256",
-      "timestampUrl": ""
+      "timestampUrl": "",
+      "nsis": {
+        "languages": ["SimpChinese", "English"],
+        "displayLanguageSelector": false,
+        "installMode": "currentUser",
+        "installerIcon": "icons/icon.ico",
+        "compression": "lzma"
+      }
     }
   },
   "app": {
@@ -41,7 +58,20 @@
       }
     ],
     "security": {
-      "csp": null
+      "csp": {
+        "default-src": "'self'",
+        "script-src": "'self'",
+        "style-src": "'self' 'unsafe-inline'",
+        "img-src": "'self' data: blob:",
+        "font-src": "'self' data:",
+        "connect-src": "ipc: http://ipc.localhost",
+        "object-src": "'none'",
+        "base-uri": "'none'",
+        "form-action": "'none'",
+        "frame-src": "'none'"
+      },
+      "devCsp": null,
+      "freezePrototype": true
     }
   }
 }

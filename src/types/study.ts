@@ -255,3 +255,18 @@ export interface LessonPart {
   chars: number
   status: 'taught' | 'skipped' | 'next' | 'todo'
 }
+
+export interface CourseDigest {
+  course_id: number
+  name: string
+  exam_date: string | null
+  days_to_exam: number | null
+  points: number
+  learned: number
+  mastered: number
+  due: number
+  weak: number
+  open_mistakes: number
+  next_step: string | null
+  updated_at: string
+}

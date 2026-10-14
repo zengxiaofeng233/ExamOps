@@ -37,6 +37,7 @@ fn clean_name(name: &str) -> AppResult<String> {
     Ok(name.to_string())
 }
 
+/// 新建课程。
 #[tauri::command]
 pub fn create_course(app_handle: AppHandle, input: CreateCourseInput) -> AppResult<Course> {
     let conn = database::get_connection(&app_handle)?;
@@ -48,6 +49,7 @@ pub fn create_course(app_handle: AppHandle, input: CreateCourseInput) -> AppResu
     find(&conn, conn.last_insert_rowid())
 }
 
+/// 全部课程。
 #[tauri::command]
 pub fn get_courses(app_handle: AppHandle) -> AppResult<Vec<Course>> {
     let conn = database::get_connection(&app_handle)?;
@@ -60,12 +62,14 @@ pub fn get_courses(app_handle: AppHandle) -> AppResult<Vec<Course>> {
     Ok(courses)
 }
 
+/// 单个课程。
 #[tauri::command]
 pub fn get_course(app_handle: AppHandle, id: i64) -> AppResult<Course> {
     let conn = database::get_connection(&app_handle)?;
     find(&conn, id)
 }
 
+/// 修改名称、简介、考试日期（考试日期传空字符串表示清除）。
 #[tauri::command]
 pub fn update_course(app_handle: AppHandle, input: UpdateCourseInput) -> AppResult<Course> {
     let conn = database::get_connection(&app_handle)?;
@@ -95,6 +99,7 @@ pub fn update_course(app_handle: AppHandle, input: UpdateCourseInput) -> AppResu
     find(&conn, input.id)
 }
 
+/// 删除课程及其全部数据和资料副本。
 #[tauri::command]
 pub async fn delete_course(
     paths: tauri::State<'_, crate::database::AppPaths>,
