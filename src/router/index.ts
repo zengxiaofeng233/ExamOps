@@ -28,6 +28,12 @@ const routes: RouteRecordRaw[] = [
         name: 'documents',
         component: () => import('@/views/course/DocumentsView.vue'),
         meta: { tab: '资料' }
+      },
+      {
+        path: 'tutor',
+        name: 'tutor',
+        component: () => import('@/views/course/TutorView.vue'),
+        meta: { tab: 'AI 问答' }
       }
     ]
   },

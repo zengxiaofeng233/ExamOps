@@ -2,6 +2,20 @@
 
 按《ExamOps Development Roadmap V1.4》的阶段记录。每个阶段在独立分支开发（`feat/stageN-*`），按顺序合并。
 
+## Stage 3 — AI 接口与上下文引擎（`feat/stage3-ai-context`）
+
+- BYOK 多模型配置：任何 OpenAI 兼容接口（含 Ollama / LM Studio），服务商预设，参数与 Token 预算设置。
+- API Key 存入系统凭据管理器（Windows Credential Manager），界面只显示掩码；凭据管理器不可用时回退本地并明确提示。
+- 连接测试；HTTP 401/404/429/5xx、超时、断网、流中断均给出可操作的中文提示；新参数规则（max_completion_tokens 等）自动兼容重试。
+- 流式回答（SSE）、随时停止（保留已生成内容）、重新生成；生成中途崩溃在下次启动时标记为中断。
+- Context Engine：全文 / 检索（FTS5 + BM25 + 相邻片段扩展）/ 自动路由，按模型上下文预算裁剪资料与历史。
+- 回答区分【教材】【补充】【推导】并引用 [S1] 等来源编号；点击编号跳转原文页码；引用不存在的编号会被标出。
+- 资料以标记块隔离，资料中的“指令”不会被当作指令执行（提示注入防护）；模型无法访问数据库或系统命令。
+- 会话与消息持久化（含来源、上下文模式、用量）；Token 用量统计。
+- 设置页新增“AI 模型”与“上下文策略”；课程新增“AI 问答”标签页。
+- 前端单元测试（vitest）：Markdown 渲染转义、引用解析、高亮。
+- 数据库迁移 0004（model_profiles / conversations / messages / ai_usage，移除未使用的旧占位表）。
+
 ## Stage 2 — 文档处理与检索（`feat/stage2-document-engine`）
 
 - Python Sidecar 输出结构化结果（协议 v2）：页/幻灯片/段落/文本块单元、标题标记、图片、警告、进度。

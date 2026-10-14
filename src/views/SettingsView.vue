@@ -18,7 +18,9 @@
       </nav>
       <div class="min-w-0 flex-1 overflow-y-auto p-6">
         <div class="mx-auto max-w-3xl space-y-5">
-          <template v-if="active === 'general'">
+          <ModelSettings v-if="active === 'models'" />
+
+          <template v-else-if="active === 'general'">
             <section class="card p-5">
               <h2 class="section-title">启动</h2>
               <label class="mt-3 flex items-start gap-3">
@@ -66,7 +68,9 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import ModelSettings from '@/components/settings/ModelSettings.vue'
 import { useAppStore } from '@/stores/app'
 import { useToastStore } from '@/stores/toast'
 import { AppService } from '@/services/app'
@@ -76,11 +80,16 @@ import { formatBytes } from '@/utils/format'
 const app = useAppStore()
 const toast = useToastStore()
 const sections = [
+  { id: 'models', label: 'AI 模型' },
   { id: 'general', label: '通用' },
   { id: 'data', label: '数据与存储' },
   { id: 'about', label: '关于' }
 ] as const
-const active = ref<(typeof sections)[number]['id']>('general')
+type SectionId = (typeof sections)[number]['id']
+const route = useRoute()
+const router = useRouter()
+const active = ref<SectionId>(sections.some(s => s.id === route.query.section) ? (route.query.section as SectionId) : 'models')
+watch(active, (section) => router.replace({ query: { section } }))
 const info = ref<AppInfo | null>(null)
 const form = reactive<AppSettings>({ ...app.settings })
 

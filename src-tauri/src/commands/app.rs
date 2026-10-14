@@ -75,6 +75,19 @@ pub fn open_data_dir(app_handle: AppHandle) -> AppResult<()> {
         .map_err(|e| AppError::msg(format!("无法打开数据目录：{e}")))
 }
 
+/// Opens an http(s) link (AI answer, course video) in the system browser.
+#[tauri::command]
+pub fn open_external_url(app_handle: AppHandle, url: String) -> AppResult<()> {
+    let parsed = url::Url::parse(url.trim()).map_err(|_| AppError::invalid("链接无效"))?;
+    if !matches!(parsed.scheme(), "http" | "https") {
+        return Err(AppError::invalid("只能打开 http/https 链接"));
+    }
+    app_handle
+        .opener()
+        .open_url(parsed.as_str(), None::<&str>)
+        .map_err(|e| AppError::msg(format!("无法打开链接：{e}")))
+}
+
 #[tauri::command]
 pub fn save_last_location(app_handle: AppHandle, location: LastLocation) -> AppResult<()> {
     if !location.path.starts_with('/') || location.path.len() > 500 {

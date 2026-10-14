@@ -3,6 +3,7 @@
 //! Every field has a default, so settings saved by an older version keep
 //! working when new fields are added.
 
+use crate::context::ContextMode;
 use crate::error::AppResult;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
@@ -12,22 +13,47 @@ pub const LAST_LOCATION_KEY: &str = "last_location";
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(default)]
+pub struct ContextSettings {
+    /// Default context strategy for new conversations.
+    pub mode: ContextMode,
+    /// Chunks retrieved per question in RAG mode.
+    pub rag_top_k: usize,
+    /// Full context is used when the material needs at most this share of the budget.
+    pub full_ratio: f64,
+    /// Previous question/answer pairs sent with each request.
+    pub history_turns: usize,
+}
+
+impl Default for ContextSettings {
+    fn default() -> Self {
+        ContextSettings { mode: ContextMode::Auto, rag_top_k: 8, full_ratio: 0.8, history_turns: 6 }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
 pub struct AppSettings {
     /// Re-open the page the user was on when the app was closed.
     pub restore_last_location: bool,
+    pub context: ContextSettings,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
-        AppSettings {
-            restore_last_location: true,
-        }
+        AppSettings { restore_last_location: true, context: ContextSettings::default() }
     }
 }
 
 impl AppSettings {
-    /// Clamps values into supported ranges (numeric settings are added by later stages).
-    pub fn normalized(self) -> Self {
+    /// Clamps values into supported ranges.
+    pub fn normalized(mut self) -> Self {
+        self.context.rag_top_k = self.context.rag_top_k.clamp(2, 30);
+        self.context.full_ratio = if self.context.full_ratio.is_finite() {
+            self.context.full_ratio.clamp(0.2, 1.0)
+        } else {
+            0.8
+        };
+        self.context.history_turns = self.context.history_turns.min(20);
         self
     }
 }
@@ -71,7 +97,7 @@ mod tests {
         let mut conn = Connection::open_in_memory().unwrap();
         crate::database::migrations::migrate(&mut conn).unwrap();
         assert_eq!(load(&conn).unwrap(), AppSettings::default());
-        save(&conn, AppSettings { restore_last_location: false }).unwrap();
+        save(&conn, AppSettings { restore_last_location: false, ..Default::default() }).unwrap();
         assert!(!load(&conn).unwrap().restore_last_location);
         conn.execute("UPDATE app_settings SET value = '{broken' WHERE key = 'app'", [])
             .unwrap();
@@ -80,5 +106,15 @@ mod tests {
         conn.execute("UPDATE app_settings SET value = '{\"future\":1}' WHERE key = 'app'", [])
             .unwrap();
         assert!(load(&conn).unwrap().restore_last_location);
+    }
+
+    #[test]
+    fn values_are_clamped() {
+        let settings = AppSettings {
+            context: ContextSettings { mode: ContextMode::Rag, rag_top_k: 999, full_ratio: f64::NAN, history_turns: 99 },
+            ..Default::default()
+        }
+        .normalized();
+        assert_eq!((settings.context.rag_top_k, settings.context.full_ratio, settings.context.history_turns), (30, 0.8, 20));
     }
 }

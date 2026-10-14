@@ -52,7 +52,7 @@ pub struct Scope {
     pub section_ids: Vec<i64>,
 }
 
-fn scope_sql(scope: &Scope, args: &mut Vec<Value>) -> String {
+pub(crate) fn scope_sql(scope: &Scope, args: &mut Vec<Value>) -> String {
     let mut sql = String::new();
     if !scope.document_ids.is_empty() {
         sql.push_str(&format!(" AND c.document_id IN ({})", vec!["?"; scope.document_ids.len()].join(",")));

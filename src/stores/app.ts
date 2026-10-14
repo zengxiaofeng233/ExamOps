@@ -4,7 +4,8 @@ import type { AppSettings } from '@/types/app'
 import { AppService } from '@/services/app'
 
 const DEFAULTS: AppSettings = {
-  restore_last_location: true
+  restore_last_location: true,
+  context: { mode: 'auto', rag_top_k: 8, full_ratio: 0.8, history_turns: 6 }
 }
 
 export const useAppStore = defineStore('app', () => {
@@ -13,7 +14,8 @@ export const useAppStore = defineStore('app', () => {
 
   async function load() {
     try {
-      settings.value = { ...DEFAULTS, ...(await AppService.settings()) }
+      const loaded = await AppService.settings()
+      settings.value = { ...DEFAULTS, ...loaded, context: { ...DEFAULTS.context, ...loaded.context } }
     } finally {
       ready.value = true
     }

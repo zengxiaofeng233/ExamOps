@@ -1,17 +1,22 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod ai;
 mod commands;
+mod context;
 mod database;
 mod documents;
 mod error;
 mod models;
 mod search;
+mod security;
 mod settings;
 mod sidecar;
+mod tutor;
 #[cfg(test)]
 mod test_support;
 
+use std::sync::Arc;
 use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
 
@@ -22,6 +27,7 @@ fn main() {
         .plugin(tauri_plugin_opener::init())
         .manage(documents::DocumentTasks::default())
         .manage(commands::document::PreviewLimiter::default())
+        .manage(ai::AiState::new(Arc::new(security::KeyringStore)))
         .setup(|app| {
             let paths = database::AppPaths::resolve(app.handle())?;
             if let Err(error) = database::init_database(&paths) {
@@ -39,6 +45,7 @@ fn main() {
             // Phase-one imports only stored plain text: index them for search right away.
             if let Ok(mut conn) = paths.connect() {
                 let _ = documents::backfill_legacy(&mut conn);
+                let _ = tutor::recover_interrupted(&conn);
             }
             app.manage(paths);
             Ok(())
@@ -48,6 +55,7 @@ fn main() {
             commands::app::update_app_settings,
             commands::app::get_app_info,
             commands::app::open_data_dir,
+            commands::app::open_external_url,
             commands::app::save_last_location,
             commands::app::get_last_location,
             commands::course::create_course,
@@ -67,6 +75,19 @@ fn main() {
             commands::document::get_page_preview,
             commands::document::get_document_image,
             commands::document::search_course,
+            commands::ai::list_model_profiles,
+            commands::ai::save_model_profile,
+            commands::ai::delete_model_profile,
+            commands::ai::set_default_model_profile,
+            commands::ai::test_model_profile,
+            commands::ai::get_ai_usage,
+            commands::ai::list_conversations,
+            commands::ai::create_conversation,
+            commands::ai::get_conversation,
+            commands::ai::update_conversation,
+            commands::ai::delete_conversation,
+            commands::ai::send_message,
+            commands::ai::cancel_generation,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

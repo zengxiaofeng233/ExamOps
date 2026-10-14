@@ -47,7 +47,8 @@ const course = computed(() => store.courses.find(c => c.id === props.courseId) ?
 
 const tabs = [
   { name: 'course-overview', label: '概览' },
-  { name: 'documents', label: '资料' }
+  { name: 'documents', label: '资料' },
+  { name: 'tutor', label: 'AI 问答' }
 ]
 
 watch(() => props.courseId, async (id) => {

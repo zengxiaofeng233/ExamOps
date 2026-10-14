@@ -1,7 +1,15 @@
 // Mirrors src-tauri/src/settings.rs and src-tauri/src/commands/app.rs
 
+export interface ContextSettings {
+  mode: 'auto' | 'full' | 'rag'
+  rag_top_k: number
+  full_ratio: number
+  history_turns: number
+}
+
 export interface AppSettings {
   restore_last_location: boolean
+  context: ContextSettings
 }
 
 export interface AppInfo {
