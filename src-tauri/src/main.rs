@@ -6,8 +6,11 @@ mod database;
 mod documents;
 mod error;
 mod models;
+mod search;
 mod settings;
 mod sidecar;
+#[cfg(test)]
+mod test_support;
 
 use tauri::Manager;
 use tauri_plugin_dialog::{DialogExt, MessageDialogKind};
@@ -18,6 +21,7 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(documents::DocumentTasks::default())
+        .manage(commands::document::PreviewLimiter::default())
         .setup(|app| {
             let paths = database::AppPaths::resolve(app.handle())?;
             if let Err(error) = database::init_database(&paths) {
@@ -31,6 +35,10 @@ fn main() {
                     .kind(MessageDialogKind::Error)
                     .blocking_show();
                 return Err(error.into());
+            }
+            // Phase-one imports only stored plain text: index them for search right away.
+            if let Ok(mut conn) = paths.connect() {
+                let _ = documents::backfill_legacy(&mut conn);
             }
             app.manage(paths);
             Ok(())
@@ -48,8 +56,17 @@ fn main() {
             commands::course::update_course,
             commands::course::delete_course,
             commands::document::get_documents,
+            commands::document::get_document,
             commands::document::get_document_content,
             commands::document::import_document,
+            commands::document::reprocess_document,
+            commands::document::delete_document,
+            commands::document::get_document_sections,
+            commands::document::get_course_sections,
+            commands::document::get_document_pages,
+            commands::document::get_page_preview,
+            commands::document::get_document_image,
+            commands::document::search_course,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

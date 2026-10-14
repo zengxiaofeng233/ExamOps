@@ -27,6 +27,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "app_settings",
         sql: include_str!("../../migrations/0002_app_settings.sql"),
     },
+    Migration {
+        version: 3,
+        name: "document_structure",
+        sql: include_str!("../../migrations/0003_document_structure.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {

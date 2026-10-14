@@ -1,7 +1,13 @@
 #!/usr/bin/env python3
 """
 ExamOps Python Sidecar
-处理文档解析、章节切分等复杂任务
+处理文档解析、章节识别、图片提取和页面预览。
+
+One-shot mode (used by the desktop app; prints one JSON object on stdout):
+  examops-parser --input FILE [--figures-dir DIR] [--progress]
+  examops-parser --render FILE --pages 1,2,3 --out-dir DIR [--width 1200]
+JSON-lines mode (no arguments): one request per line on stdin, e.g.
+  {"command": "parse_structured", "data": {"path": "...", "figures_dir": "..."}}
 """
 
 import sys
@@ -9,81 +15,81 @@ import json
 import argparse
 from typing import Dict, Any
 
+PROTOCOL_VERSION = 2
 
-def handle_command(command: str, data: Dict[str, Any]) -> Dict[str, Any]:
+
+def error_response(error: Exception) -> Dict[str, Any]:
+    from parser import DocumentError
+    if isinstance(error, DocumentError):
+        return {"status": "error", "message": str(error)}
+    return {"status": "error", "message": f"{type(error).__name__}: {error}"}
+
+
+def handle_command(command: str, data: Dict[str, Any], progress=None) -> Dict[str, Any]:
     """处理来自 Rust 的命令"""
 
     if command == "parse_document":
         from parser import parse_document
-        return {
-            "status": "success",
-            "content": parse_document(data["path"])
-        }
+        return {"status": "success", "content": parse_document(data["path"])}
 
-    elif command == "extract_chapters":
-        # TODO: 实现章节提取
-        return {
-            "status": "error",
-            "message": "Chapter extraction not yet implemented"
-        }
+    if command == "parse_structured":
+        from parser import parse_structured
+        result = parse_structured(data["path"], data.get("figures_dir"), progress)
+        return {"status": "success", "version": PROTOCOL_VERSION, **result}
 
-    elif command == "extract_images":
-        # TODO: 实现图片提取
-        return {
-            "status": "error",
-            "message": "Image extraction not yet implemented"
-        }
+    if command == "render_pages":
+        from render import render_pages
+        pages = render_pages(data["path"], data.get("pages", []), data["out_dir"], data.get("width", 1200))
+        return {"status": "success", "pages": pages}
 
-    else:
-        return {
-            "status": "error",
-            "message": f"Unknown command: {command}"
-        }
+    return {"status": "error", "message": f"Unknown command: {command}"}
 
 
 def main():
-    """主循环：从标准输入读取命令，输出结果到标准输出"""
+    """一次性模式或 JSON 行模式。"""
 
     sys.stdin.reconfigure(encoding="utf-8")
     sys.stdout.reconfigure(encoding="utf-8")
     sys.stderr.reconfigure(encoding="utf-8")
     args = argparse.ArgumentParser()
     args.add_argument("--input")
+    args.add_argument("--figures-dir")
+    args.add_argument("--progress", action="store_true")
+    args.add_argument("--render")
+    args.add_argument("--pages", default="")
+    args.add_argument("--out-dir")
+    args.add_argument("--width", type=int, default=1200)
     options = args.parse_args()
-    if options.input:
+
+    if options.input or options.render:
+        from parser import Progress
         try:
-            result = handle_command("parse_document", {"path": options.input})
+            if options.input:
+                result = handle_command("parse_structured", {"path": options.input, "figures_dir": options.figures_dir},
+                                        Progress(options.progress))
+            else:
+                pages = [int(p) for p in options.pages.split(",") if p.strip()]
+                result = handle_command("render_pages", {"path": options.render, "pages": pages,
+                                                         "out_dir": options.out_dir, "width": options.width})
         except Exception as error:
-            result = {"status": "error", "message": str(error)}
+            result = error_response(error)
         print(json.dumps(result, ensure_ascii=False), flush=True)
         return
 
     # 通知 Rust 端已启动
-    print(json.dumps({"status": "ready"}), flush=True)
+    print(json.dumps({"status": "ready", "version": PROTOCOL_VERSION}), flush=True)
 
-    # 主循环
     for line in sys.stdin:
+        if not line.strip():
+            continue
         try:
             request = json.loads(line.strip())
-            command = request.get("command")
-            data = request.get("data", {})
-
-            result = handle_command(command, data)
-            print(json.dumps(result), flush=True)
-
+            result = handle_command(request.get("command"), request.get("data", {}))
         except json.JSONDecodeError as e:
-            error_response = {
-                "status": "error",
-                "message": f"Invalid JSON: {str(e)}"
-            }
-            print(json.dumps(error_response), flush=True)
-
+            result = {"status": "error", "message": f"Invalid JSON: {str(e)}"}
         except Exception as e:
-            error_response = {
-                "status": "error",
-                "message": f"Error: {str(e)}"
-            }
-            print(json.dumps(error_response), flush=True)
+            result = error_response(e)
+        print(json.dumps(result, ensure_ascii=False), flush=True)
 
 
 if __name__ == "__main__":

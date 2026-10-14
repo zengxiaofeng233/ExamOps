@@ -1,126 +1,316 @@
 <template>
-  <div class="h-full overflow-y-auto p-6 text-slate-900">
-    <div class="mb-3 flex flex-wrap items-center gap-4">
-      <button @click="importFiles" :disabled="importing" class="btn btn-primary">
-        {{ importing ? '正在导入…' : '导入资料' }}
-      </button>
-      <p class="text-sm text-slate-600">PDF、Word (.docx)、PPT (.pptx)、TXT、Markdown</p>
-    </div>
-    <p class="mb-6 text-sm text-slate-500">原文件保持不变。图片文字由本地 OCR 识别，支持简体中文、繁体中文和英文。</p>
-    <p v-if="progress" role="status" class="mb-4 break-words text-indigo-700">{{ progress }}</p>
-    <p v-if="error" role="alert" class="mb-4 break-words whitespace-pre-wrap text-rose-700">{{ error }}</p>
-    <p v-if="loading" class="text-slate-500">加载中…</p>
-    <EmptyState v-else-if="!documents.length" title="暂无资料" description="点击上方按钮导入教材、PPT 或笔记。" />
-    <div v-else class="grid grid-cols-1 gap-5 md:grid-cols-[240px_minmax(0,1fr)] lg:grid-cols-[320px_minmax(0,1fr)]">
-      <section aria-label="资料列表" class="space-y-3">
-        <button v-for="document in documents" :key="document.id" @click="selectDocument(document)"
-          :aria-pressed="selected?.id === document.id"
-          :class="selected?.id === document.id ? 'border-indigo-500 ring-1 ring-indigo-500' : 'border-slate-200'"
-          class="block w-full rounded-lg border bg-white p-4 text-left hover:border-indigo-400">
-          <h2 class="font-semibold break-all">{{ document.filename }}</h2>
-          <p class="mt-2 text-xs text-slate-500">{{ document.file_type.toUpperCase() }} · {{ formatBytes(document.file_size) }} · #{{ document.id }}</p>
-          <p class="mt-2 text-sm" :class="document.status === 'failed' ? 'text-rose-700' : 'text-slate-600'">{{ statusLabels[document.status] }}</p>
+  <div class="flex h-full min-h-0">
+    <!-- Library -->
+    <aside v-show="!libraryHidden" class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:w-72">
+      <div class="space-y-2 border-b border-slate-100 p-3">
+        <button class="btn btn-primary w-full" :disabled="importing" @click="importFiles">
+          <ArrowUpTrayIcon class="size-4" />{{ importing ? '正在导入…' : '导入资料' }}
         </button>
-      </section>
-      <section aria-label="提取正文" class="card min-w-0 p-5">
-        <template v-if="selected">
-          <h2 class="mb-4 font-semibold break-all">{{ selected.filename }}</h2>
-          <p v-if="selected.status === 'failed'" role="alert" class="break-words text-rose-700">{{ selected.error || '正文提取失败，请检查文件后重新导入。' }}</p>
-          <p v-else-if="selected.status !== 'completed'" class="text-slate-500">正在提取正文，扫描资料可能需要较长时间。</p>
-          <p v-else-if="contentLoading" class="text-slate-500">正在读取正文…</p>
-          <p v-else-if="contentError" role="alert" class="text-rose-700">{{ contentError }}</p>
-          <pre v-else class="font-sans text-sm leading-7 break-words whitespace-pre-wrap">{{ content }}</pre>
-        </template>
-        <p v-else class="text-slate-500">选择左侧资料查看正文。</p>
-      </section>
-    </div>
+        <p class="text-[11px] leading-4 text-slate-500">PDF、Word(.docx)、PPT(.pptx)、TXT、Markdown。原文件保持不变；图片文字由本地 OCR 识别。</p>
+      </div>
+      <p v-if="importStatus" role="status" class="border-b border-slate-100 bg-indigo-50 px-3 py-2 text-xs break-words text-indigo-700">{{ importStatus }}</p>
+      <div class="min-h-0 flex-1 overflow-y-auto p-2">
+        <p v-if="loading" class="p-3 text-sm text-slate-400">加载中…</p>
+        <EmptyState v-else-if="!documents.length" title="暂无资料" description="导入教材、课件或笔记后即可阅读、检索并让 AI 讲解。" />
+        <ul v-else class="space-y-1.5">
+          <li v-for="item in documents" :key="item.id">
+            <button
+              class="block w-full rounded-lg border p-3 text-left transition-colors"
+              :class="selected?.id === item.id ? 'border-indigo-400 bg-indigo-50/60' : 'border-transparent hover:border-slate-200 hover:bg-slate-50'"
+              :aria-pressed="selected?.id === item.id"
+              @click="openDocument(item.id)"
+            >
+              <p class="line-clamp-2 text-sm font-medium break-all text-slate-800">{{ item.filename }}</p>
+              <p class="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
+                <span class="badge" :class="badgeClass(item)">{{ STATUS_LABELS[item.status] }}</span>
+                <span>{{ FILE_LABELS[item.file_type] ?? item.file_type }}</span>
+                <span v-if="item.status === 'completed'">· {{ item.section_count }} 章节</span>
+              </p>
+              <p v-if="progress[item.id] && item.status === 'processing'" class="mt-1 text-xs text-indigo-600">{{ progressText(item.id) }}</p>
+            </button>
+          </li>
+        </ul>
+      </div>
+    </aside>
+
+    <!-- Reader / search -->
+    <section class="flex min-w-0 flex-1 flex-col">
+      <form class="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5" role="search" @submit.prevent="runSearch">
+        <button
+          type="button"
+          class="btn btn-ghost btn-sm"
+          :title="libraryHidden ? '显示资料列表' : '隐藏资料列表'"
+          :aria-pressed="!libraryHidden"
+          @click="toggleLibrary"
+        >
+          <Bars3Icon class="size-4" />
+        </button>
+        <MagnifyingGlassIcon class="size-4 shrink-0 text-slate-400" />
+        <input
+          v-model="query"
+          type="search"
+          maxlength="200"
+          class="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
+          placeholder="在本课程资料中检索关键词，例如：导数 几何意义"
+          aria-label="检索资料"
+        />
+        <select v-model="searchScope" class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600" aria-label="检索范围">
+          <option value="all">全部资料</option>
+          <option value="current" :disabled="!selected">当前资料</option>
+        </select>
+        <button type="submit" class="btn btn-soft btn-sm" :disabled="!query.trim()">检索</button>
+        <button v-if="searchResult" type="button" class="btn btn-ghost btn-sm" @click="clearSearch">返回阅读</button>
+      </form>
+      <div class="min-h-0 flex-1">
+        <SearchResults v-if="searchResult || searching" :result="searchResult" :loading="searching" @open="openHit" />
+        <DocumentReader
+          v-else-if="selected"
+          :key="selected.id"
+          :document="selected"
+          :page="targetPage"
+          :terms="highlight"
+          :busy="importing || reprocessing"
+          @reprocess="reprocess"
+          @delete="confirmDelete = true"
+          @visible-page="rememberPage"
+        />
+        <EmptyState v-else-if="documents.length" title="选择一份资料开始阅读" description="左侧列表中的资料解析完成后，可按章节阅读并查看原页面。" />
+      </div>
+    </section>
+
+    <ConfirmDialog
+      :open="confirmDelete"
+      title="删除资料"
+      :message="`确定删除“${selected?.filename}”吗？\n应用内副本、提取正文、章节和图片将一并删除，你电脑上的原文件不受影响。`"
+      confirm-text="删除"
+      danger
+      :busy="deleting"
+      @cancel="confirmDelete = false"
+      @confirm="removeSelected"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
-import { onBeforeRouteLeave } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
 import { open } from '@tauri-apps/plugin-dialog'
+import { ArrowUpTrayIcon, Bars3Icon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import DocumentReader from '@/components/documents/DocumentReader.vue'
+import SearchResults from '@/components/documents/SearchResults.vue'
 import { DocumentService } from '@/services/document'
-import type { Course, Document } from '@/types/models'
-import { errorMessage as message } from '@/utils/errors'
-import { formatBytes } from '@/utils/format'
+import { useToastStore } from '@/stores/toast'
+import type { Course } from '@/types/models'
+import type { Document, ImportProgress, SearchHit, SearchResult } from '@/types/document'
+import { FILE_LABELS, STATUS_LABELS, UNIT_NAMES } from '@/utils/documents'
+import { errorMessage } from '@/utils/errors'
 
 const props = defineProps<{ course: Course }>()
-const courseId = props.course.id
+const route = useRoute()
+const router = useRouter()
+const toast = useToastStore()
+
 const documents = ref<Document[]>([])
-const selected = ref<Document>()
-const content = ref('')
-const contentError = ref('')
-const contentLoading = ref(false)
 const loading = ref(true)
 const importing = ref(false)
-const error = ref('')
-const progress = ref('')
-const statusLabels = { pending: '待处理', processing: '正在提取正文', completed: '提取完成', failed: '提取失败' }
+const reprocessing = ref(false)
+const deleting = ref(false)
+const confirmDelete = ref(false)
+const importStatus = ref('')
+const progress = reactive<Record<number, ImportProgress>>({})
+const targetPage = ref<number | null>(null)
+const query = ref('')
+const searchScope = ref<'all' | 'current'>('all')
+const searchResult = ref<SearchResult | null>(null)
+const searching = ref(false)
+const highlight = ref<string[]>([])
+const LIBRARY_KEY = 'examops.documents.libraryHidden'
+const libraryHidden = ref(readFlag(LIBRARY_KEY))
+
+function readFlag(key: string) {
+  try { return localStorage.getItem(key) === '1' } catch { return false }
+}
+
+function toggleLibrary() {
+  libraryHidden.value = !libraryHidden.value
+  try { localStorage.setItem(LIBRARY_KEY, libraryHidden.value ? '1' : '0') } catch { /* storage unavailable */ }
+}
+
+const selectedId = computed(() => Number(route.query.doc) || null)
+const selected = computed(() => documents.value.find(d => d.id === selectedId.value) ?? null)
+
+let poll: ReturnType<typeof setInterval> | undefined
+let reportedPage: number | null = null
+
+async function refresh() {
+  documents.value = await DocumentService.list(props.course.id)
+}
 
 onMounted(async () => {
   try {
-    documents.value = await DocumentService.list(courseId)
-  } catch (e) { error.value = message(e) }
-  finally { loading.value = false }
+    await refresh()
+    targetPage.value = Number(route.query.page) || null
+    reportedPage = targetPage.value
+    if (route.query.q) highlight.value = String(route.query.q).split(/\s+/).filter(Boolean)
+    if (!selected.value && documents.value.length) {
+      const first = documents.value.find(d => d.status === 'completed') ?? documents.value[0]
+      router.replace({ query: { ...route.query, doc: first.id } })
+    }
+  } catch (e) {
+    toast.error(e)
+  } finally {
+    loading.value = false
+  }
 })
 
+onBeforeUnmount(() => clearInterval(poll))
 // Keep the page that owns the sequential import queue alive until it is finished.
 onBeforeRouteLeave(() => !importing.value)
 
-async function selectDocument(document: Document) {
-  selected.value = document
-  content.value = ''
-  contentError.value = ''
-  contentLoading.value = false
-  if (document.status !== 'completed') return
-  contentLoading.value = true
-  try {
-    const body = await DocumentService.content(document.id)
-    if (selected.value?.id === document.id) content.value = body
-  } catch (e) {
-    if (selected.value?.id === document.id) contentError.value = message(e)
-  } finally {
-    if (selected.value?.id === document.id) contentLoading.value = false
+// Navigation from elsewhere (citations, learning steps) changes doc/page in the URL.
+watch(() => [route.query.doc, route.query.page], ([, page]) => {
+  const wanted = Number(page) || null
+  if (wanted !== reportedPage) {
+    targetPage.value = wanted
+    reportedPage = wanted
   }
+  if (route.query.q) highlight.value = String(route.query.q).split(/\s+/).filter(Boolean)
+})
+
+function openDocument(id: number, page?: number) {
+  searchResult.value = null
+  targetPage.value = page ?? null
+  reportedPage = targetPage.value
+  router.replace({ query: { doc: id, ...(page ? { page } : {}) } })
+}
+
+function rememberPage(page: number) {
+  reportedPage = page
+  router.replace({ query: { ...route.query, page } })
+}
+
+function badgeClass(document: Document) {
+  return {
+    completed: 'bg-emerald-50 text-emerald-700',
+    failed: 'bg-rose-50 text-rose-700',
+    processing: 'bg-indigo-50 text-indigo-700',
+    pending: 'bg-slate-100 text-slate-600'
+  }[document.status]
+}
+
+function progressText(id: number) {
+  const p = progress[id]
+  if (!p || !p.total) return '正在解析…'
+  const unit = p.stage === 'slide' ? '张幻灯片' : p.stage === 'paragraph' ? '段' : UNIT_NAMES.page
+  return `正在解析：第 ${p.current}/${p.total} ${unit}`
+}
+
+function onProgress(p: ImportProgress) {
+  progress[p.document_id] = p
 }
 
 async function importFiles() {
-  importing.value = true
-  error.value = ''
-  progress.value = ''
-  let refresh: ReturnType<typeof setInterval> | undefined
+  let files: string[] = []
   try {
-    const paths = await open({ multiple: true, directory: false, filters: [
+    const picked = await open({ multiple: true, directory: false, filters: [
       { name: '课程资料', extensions: ['pdf', 'docx', 'pptx', 'txt', 'md', 'markdown'] }
     ] })
-    if (!paths) return
-    const files = Array.isArray(paths) ? paths : [paths]
-    let failures = 0
-    refresh = setInterval(async () => {
-      try { documents.value = await DocumentService.list(courseId) }
-      catch (e) { error.value = message(e) }
-    }, 1000)
+    if (!picked) return
+    files = Array.isArray(picked) ? picked : [picked]
+  } catch (e) {
+    toast.error(e)
+    return
+  }
+  importing.value = true
+  poll = setInterval(() => refresh().catch(() => undefined), 1500)
+  let failures = 0
+  const errors: string[] = []
+  try {
     for (let index = 0; index < files.length; index++) {
       const filename = files[index].split(/[\\/]/).pop()
-      progress.value = `正在处理 ${index + 1}/${files.length}：${filename}。OCR 按页执行，请稍候。`
+      importStatus.value = `正在导入 ${index + 1}/${files.length}：${filename}（扫描页需要 OCR，请稍候）`
       try {
-        const document = await DocumentService.import(courseId, files[index])
-        if (document.status === 'failed') failures++
-        documents.value = await DocumentService.list(courseId)
-        await selectDocument(document)
+        const document = await DocumentService.import(props.course.id, files[index], onProgress)
+        if (document.status === 'failed') {
+          failures++
+          errors.push(`${filename}：${document.error ?? '解析失败'}`)
+        }
+        await refresh()
+        if (index === files.length - 1 || !selected.value) openDocument(document.id)
       } catch (e) {
         failures++
-        error.value += `${filename}：${message(e)}\n`
+        errors.push(`${filename}：${errorMessage(e)}`)
       }
     }
-    progress.value = `处理结束：${files.length - failures} 个成功，${failures} 个失败。`
-  } catch (e) { error.value = message(e) }
-  finally {
-    if (refresh) clearInterval(refresh)
+    importStatus.value = ''
+    if (failures) toast.error(`导入完成：${files.length - failures} 个成功，${failures} 个失败。\n${errors.join('\n')}`)
+    else toast.success(`已导入 ${files.length} 份资料`)
+  } finally {
+    clearInterval(poll)
     importing.value = false
+    await refresh().catch(() => undefined)
   }
+}
+
+async function reprocess() {
+  if (!selected.value) return
+  reprocessing.value = true
+  const id = selected.value.id
+  poll = setInterval(() => refresh().catch(() => undefined), 1500)
+  try {
+    const document = await DocumentService.reprocess(id, onProgress)
+    if (document.status === 'failed') toast.error(document.error ?? '解析失败')
+    else toast.success('已重新解析')
+  } catch (e) {
+    toast.error(e)
+  } finally {
+    clearInterval(poll)
+    reprocessing.value = false
+    await refresh().catch(() => undefined)
+  }
+}
+
+async function removeSelected() {
+  if (!selected.value) return
+  deleting.value = true
+  try {
+    await DocumentService.remove(selected.value.id)
+    confirmDelete.value = false
+    await refresh()
+    router.replace({ query: {} })
+    toast.success('资料已删除')
+  } catch (e) {
+    toast.error(e)
+  } finally {
+    deleting.value = false
+  }
+}
+
+async function runSearch() {
+  const text = query.value.trim()
+  if (!text) return
+  searching.value = true
+  searchResult.value = null
+  try {
+    searchResult.value = await DocumentService.search(
+      props.course.id, text, searchScope.value === 'current' ? selected.value?.id : undefined)
+    highlight.value = searchResult.value.terms
+  } catch (e) {
+    toast.error(e)
+  } finally {
+    searching.value = false
+  }
+}
+
+function clearSearch() {
+  searchResult.value = null
+}
+
+function openHit(hit: SearchHit) {
+  const terms = searchResult.value?.terms ?? []
+  openDocument(hit.document_id, hit.page_start)
+  highlight.value = terms
 }
 </script>

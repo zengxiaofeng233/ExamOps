@@ -86,19 +86,15 @@ pub fn update_course(app_handle: AppHandle, input: UpdateCourseInput) -> AppResu
 
 #[tauri::command]
 pub async fn delete_course(
-    app_handle: AppHandle,
+    paths: tauri::State<'_, crate::database::AppPaths>,
     tasks: tauri::State<'_, crate::documents::DocumentTasks>,
     id: i64,
 ) -> AppResult<()> {
     let _guard = tasks.0.lock().await;
+    let paths = paths.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
-        let mut conn = database::get_connection(&app_handle)?;
-        crate::documents::delete_course(
-            &mut conn,
-            &super::document::storage_root(&app_handle)?,
-            id,
-        )
-        .map_err(AppError::from)
+        let mut conn = paths.connect()?;
+        crate::documents::delete_course(&mut conn, &paths, id)
     })
     .await?
 }
