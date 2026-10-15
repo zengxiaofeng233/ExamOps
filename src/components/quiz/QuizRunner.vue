@@ -140,7 +140,7 @@ function hasAnswer(question: Question) {
 }
 
 function navClass(question: Question, i: number) {
-  if (i === index.value) return 'border-indigo-600 bg-indigo-600 text-white'
+  if (i === index.value) return 'border-indigo-600 bg-primary text-white'
   if (hasAnswer(question)) return 'border-indigo-200 bg-indigo-50 text-indigo-700'
   if (question.skipped) return 'border-dashed border-slate-300 text-slate-400'
   return 'border-slate-200 text-slate-600 hover:bg-slate-50'

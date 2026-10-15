@@ -27,7 +27,7 @@
   <article
     v-else
     :id="`unit-${page.page_number}`"
-    class="scroll-mt-4 rounded-lg border bg-white transition-shadow"
+    class="scroll-mt-4 rounded-lg border bg-surface transition-shadow"
     :class="targeted ? 'border-amber-300 ring-2 ring-amber-200' : 'border-slate-200'"
   >
     <header class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2">
@@ -41,7 +41,7 @@
     </header>
     <div v-if="showPreview && previewable" class="border-b border-slate-100 bg-slate-50 p-3">
       <LazyImage
-        class="mx-auto max-w-3xl rounded border border-slate-200 bg-white shadow-sm"
+        class="mx-auto max-w-3xl rounded border border-slate-200 bg-surface shadow-sm"
         :load="() => DocumentService.preview(documentId, page.page_number)"
         :ratio="page.width && page.height ? page.width / page.height : 0.707"
         :alt="`${page.label}原页面`"

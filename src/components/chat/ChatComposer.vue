@@ -1,5 +1,5 @@
 <template>
-  <form class="rounded-xl border border-slate-300 bg-white shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20" @submit.prevent="submit">
+  <form class="rounded-xl border border-slate-300 bg-surface shadow-sm focus-within:border-indigo-500 focus-within:ring-2 focus-within:ring-indigo-500/20" @submit.prevent="submit">
     <textarea
       ref="area"
       v-model="text"

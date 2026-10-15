@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0">
-    <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div class="border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" :disabled="creating" @click="createConversation()">
           <PlusIcon class="size-4" />新建对话
@@ -21,7 +21,7 @@
               <p class="text-[11px] text-slate-400">{{ formatRelative(item.updated_at) }}</p>
             </button>
             <button
-              class="absolute top-2 right-1.5 hidden rounded p-1 text-slate-400 group-hover:block hover:bg-white hover:text-rose-600"
+              class="absolute top-2 right-1.5 hidden rounded p-1 text-slate-400 group-hover:block hover:bg-surface hover:text-rose-600"
               title="删除对话"
               @click="removing = item"
             >

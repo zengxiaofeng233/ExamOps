@@ -7,7 +7,7 @@
         role="tab"
         :aria-selected="way === item.value"
         class="rounded-md px-2 py-1.5 text-sm font-medium transition-colors"
-        :class="way === item.value ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+        :class="way === item.value ? 'bg-surface text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
         @click="way = item.value"
       >
         {{ item.label }}

@@ -1,11 +1,11 @@
 <template>
   <div class="flex h-full flex-col">
-    <header class="border-b border-slate-200 bg-white px-6 py-4">
+    <header class="border-b border-slate-200 bg-surface px-6 py-4">
       <h1 class="page-title">设置</h1>
       <p class="mt-0.5 text-sm text-slate-500">所有设置和学习数据仅保存在本机。</p>
     </header>
     <div class="flex min-h-0 flex-1">
-      <nav class="w-44 shrink-0 space-y-0.5 border-r border-slate-200 bg-white p-2" aria-label="设置分类">
+      <nav class="w-44 shrink-0 space-y-0.5 border-r border-slate-200 bg-surface p-2" aria-label="设置分类">
         <button
           v-for="section in sections"
           :key="section.id"
@@ -84,6 +84,22 @@
           </template>
 
           <template v-else-if="active === 'about'">
+            <section class="card p-5" aria-labelledby="update-heading">
+              <div class="flex flex-wrap items-center justify-between gap-3">
+                <h2 id="update-heading" class="section-title">软件更新</h2>
+                <button type="button" class="btn btn-secondary" :disabled="updates.checking" @click="updates.check">
+                  {{ updates.checking ? '正在检查…' : '检查更新' }}
+                </button>
+              </div>
+              <p class="mt-2 text-sm text-slate-500">每次启动后台检查 GitHub 正式版本，仅提示更新，不会自动下载或安装。</p>
+              <p v-if="updates.error" class="mt-3 text-sm text-rose-600" role="alert">{{ updates.error }}</p>
+              <div v-else-if="updates.available" class="mt-3 text-sm text-slate-700">
+                <p>发现新版本 v{{ updates.available.version }}（当前 v{{ updates.available.current_version }}）</p>
+                <p class="mt-1 break-all text-xs text-slate-500">{{ updates.available.asset_name }}</p>
+                <button type="button" class="btn btn-primary mt-3" @click="updates.openRelease">前往 GitHub 下载</button>
+              </div>
+              <p v-else-if="updates.checked && !updates.checking" class="mt-3 text-sm text-slate-600" role="status">未发现更新的 Windows x64 安装包。</p>
+            </section>
             <section class="card p-5">
               <h2 class="section-title">关于 ExamOps</h2>
               <p class="mt-2 text-sm text-slate-600">基于个人学习资料的 AI 智能复习桌面软件。单用户、本地运行，无账号、无云端存储。</p>
@@ -105,6 +121,7 @@
               <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
                 <li>没有账号，没有云端存储；课程资料、学习记录和设置只保存在本机的数据目录。</li>
                 <li>只有在你使用 AI 功能时，相关资料片段和问题才会发送到你自己配置的 AI 接口；ExamOps 不经过任何中转服务器。</li>
+                <li>启动时和手动检查更新时会连接 GitHub 获取公开版本信息，不上传课程资料、学习记录或 API Key。</li>
                 <li>API Key 优先保存在 Windows 凭据管理器中（不可用时保存在本机数据库并提示），界面只显示首尾几位。</li>
               </ul>
             </section>
@@ -126,6 +143,7 @@ import ModelSettings from '@/components/settings/ModelSettings.vue'
 import AppModal from '@/components/ui/AppModal.vue'
 import { useAppStore } from '@/stores/app'
 import { useToastStore } from '@/stores/toast'
+import { useUpdateStore } from '@/stores/updates'
 import { AppService } from '@/services/app'
 import type { AppInfo, AppSettings } from '@/types/app'
 import { QUESTION_KIND_HINTS, QUESTION_KIND_LABELS, TRIGGER_LABELS } from '@/utils/assessment'
@@ -133,6 +151,7 @@ import { formatBytes } from '@/utils/format'
 
 const app = useAppStore()
 const toast = useToastStore()
+const updates = useUpdateStore()
 const sections = [
   { id: 'models', label: 'AI 模型' },
   { id: 'general', label: '通用' },

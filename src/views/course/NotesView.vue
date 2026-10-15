@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0">
-    <aside class="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside class="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div class="space-y-2 border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" @click="startNew({})"><PlusIcon class="size-4" />新建笔记</button>
         <input v-model="keyword" type="search" class="input py-1.5 text-xs" placeholder="搜索笔记" aria-label="搜索笔记" />

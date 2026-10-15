@@ -3,7 +3,7 @@
     <template v-if="image">
       <LazyImage
         :key="image.id"
-        class="mx-auto max-h-[65vh] max-w-full rounded border border-slate-200 bg-white [&_img]:max-h-[65vh] [&_img]:w-auto [&_img]:mx-auto"
+        class="mx-auto max-h-[65vh] max-w-full rounded border border-slate-200 bg-surface [&_img]:max-h-[65vh] [&_img]:w-auto [&_img]:mx-auto"
         :load="() => DocumentService.image(image!.id)"
         :alt="title"
       />

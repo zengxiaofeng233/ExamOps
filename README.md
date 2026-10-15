@@ -71,6 +71,10 @@ npm run tauri:build      # 产物：src-tauri/target/release/bundle/nsis/ExamOps
 
 也可以在 GitHub Actions 中手动运行 **Windows installer** 工作流，或推送 `v*` 标签自动构建并创建草稿 Release。安装包内置文档处理程序、OCR 模型和 WebView2 离线安装程序，按当前用户安装，不需要管理员权限。
 
+应用启动时后台检查更新，也支持“设置 → 关于 → 检查更新”。只对版本号更高、带有对应 `ExamOps_<版本>_x64-setup.exe` 的正式 Release 提醒，用户点击后在浏览器打开该 Release，自行下载安装；不会自动安装。检查更新仅请求 GitHub 公开版本信息，不发送学习数据或 API Key。
+
+发布更新时，请同步 `package.json`、`src-tauri/Cargo.toml` 和 `src-tauri/tauri.conf.json` 的版本（以及对应锁文件），使用一致的 `v<版本>` 标签构建安装包，然后在安装包上传完成后发布草稿 Release。草稿、预发布、只有源码或缺少对应安装包的版本不会触发提醒。
+
 ### 目录
 
 ```

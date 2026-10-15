@@ -1,7 +1,7 @@
 <template>
-  <aside class="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-white">
+  <aside class="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-surface">
     <div class="flex items-center gap-2.5 px-4 pt-5 pb-4">
-      <div class="flex size-8 items-center justify-center rounded-lg bg-indigo-600 text-sm font-bold text-white">E</div>
+      <div class="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white">E</div>
       <div>
         <p class="text-sm leading-tight font-semibold text-slate-900">ExamOps</p>
         <p class="text-xs leading-tight text-slate-500">AI 智能复习</p>
@@ -33,6 +33,16 @@
     </nav>
 
     <div class="border-t border-slate-100 p-2">
+      <button
+        type="button"
+        class="nav-item w-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500"
+        :aria-label="theme.isDark ? '切换到日间模式' : '切换到夜间模式'"
+        :title="theme.isDark ? '切换到日间模式' : '切换到夜间模式'"
+        @click="theme.toggle"
+      >
+        <component :is="theme.isDark ? SunIcon : MoonIcon" class="size-5 shrink-0" aria-hidden="true" />
+        <span>{{ theme.isDark ? '日间模式' : '夜间模式' }}</span>
+      </button>
       <RouterLink to="/settings" class="nav-item" :class="{ 'nav-active': route.path.startsWith('/settings') }">
         <Cog6ToothIcon class="size-5 shrink-0" />
         <span>设置</span>
@@ -44,13 +54,15 @@
 <script setup lang="ts">
 import { computed, type Component } from 'vue'
 import { useRoute } from 'vue-router'
-import { HomeIcon, RectangleStackIcon, Cog6ToothIcon } from '@heroicons/vue/24/outline'
+import { HomeIcon, RectangleStackIcon, Cog6ToothIcon, MoonIcon, SunIcon } from '@heroicons/vue/24/outline'
 import { useCourseStore } from '@/stores/course'
+import { useThemeStore } from '@/stores/theme'
 
 interface NavItem { to: string; label: string; icon: Component; exact?: boolean }
 
 const route = useRoute()
 const courseStore = useCourseStore()
+const theme = useThemeStore()
 
 const mainItems: NavItem[] = [
   { to: '/', label: '首页', icon: HomeIcon, exact: true },

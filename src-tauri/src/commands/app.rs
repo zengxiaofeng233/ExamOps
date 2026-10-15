@@ -1,6 +1,7 @@
 use crate::database::{self, migrations, AppPaths};
 use crate::error::{AppError, AppResult};
 use crate::settings::{self, AppSettings, LAST_LOCATION_KEY};
+use crate::updates::{self, AvailableUpdate};
 use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::{AppHandle, Manager, State};
@@ -67,6 +68,12 @@ pub fn get_app_info(app_handle: AppHandle, paths: State<'_, AppPaths>) -> AppRes
         schema_version: migrations::current_version(&conn)?,
         platform: format!("{} {}", std::env::consts::OS, std::env::consts::ARCH),
     })
+}
+
+/// 检查 GitHub 正式 Release，仅返回版本号更高且包含 Windows x64 安装包的版本；不下载或安装。
+#[tauri::command]
+pub async fn check_for_updates(app_handle: AppHandle) -> AppResult<Option<AvailableUpdate>> {
+    updates::check(&app_handle.package_info().version).await
 }
 
 /// 在资源管理器中打开数据目录。

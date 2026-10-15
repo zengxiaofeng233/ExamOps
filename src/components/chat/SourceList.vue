@@ -8,7 +8,7 @@
     <ul class="space-y-1 px-2 pb-2">
       <li v-for="source in sorted" :key="source.label">
         <button
-          class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-white"
+          class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-surface"
           :title="source.excerpt"
           @click="emit('open', source)"
         >

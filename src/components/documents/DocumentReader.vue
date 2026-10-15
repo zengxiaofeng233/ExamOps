@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
     <!-- Document header -->
-    <header class="border-b border-slate-200 bg-white px-5 py-3">
+    <header class="border-b border-slate-200 bg-surface px-5 py-3">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <h2 class="truncate text-base font-semibold text-slate-900" :title="document.filename">{{ document.filename }}</h2>
@@ -37,13 +37,13 @@
     <div v-else-if="document.status !== 'completed'" class="p-6 text-sm text-slate-500">正在解析，扫描资料可能需要较长时间…</div>
 
     <div v-else class="flex min-h-0 flex-1">
-      <aside class="w-56 shrink-0 overflow-y-auto border-r border-slate-200 bg-white p-2 xl:w-64">
+      <aside class="w-56 shrink-0 overflow-y-auto border-r border-slate-200 bg-surface p-2 xl:w-64">
         <p v-if="loadingSections" class="p-3 text-sm text-slate-400">加载目录…</p>
         <SectionTree v-else :sections="sections" :active-id="active?.id" @select="(s) => selectSection(s)" />
       </aside>
 
       <section class="flex min-w-0 flex-1 flex-col bg-slate-50">
-        <div v-if="active" class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2">
+        <div v-if="active" class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-surface px-4 py-2">
           <!-- A minimum width makes the tools wrap below the title instead of squeezing it in narrow windows. -->
           <div class="min-w-40 flex-1">
             <p class="truncate text-sm font-medium text-slate-800" :title="active.title">{{ active.title }}</p>

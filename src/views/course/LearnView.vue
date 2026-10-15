@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0">
-    <aside class="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside class="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div class="space-y-2.5 border-b border-slate-100 p-3">
         <div class="grid grid-cols-3 gap-1 rounded-lg bg-slate-100 p-1" role="radiogroup" aria-label="学习模式">
           <button
@@ -9,7 +9,7 @@
             role="radio"
             :aria-checked="mode === item"
             class="rounded-md px-1 py-1.5 text-xs font-medium transition-colors"
-            :class="mode === item ? 'bg-white text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
+            :class="mode === item ? 'bg-surface text-indigo-700 shadow-sm' : 'text-slate-600 hover:text-slate-900'"
             @click="mode = item"
           >
             {{ MODE_LABELS[item] }}
@@ -50,7 +50,7 @@
               <p class="mt-1 text-[11px] text-slate-400">{{ progressText(item) }} · {{ formatRelative(item.updated_at) }}</p>
             </button>
             <button
-              class="absolute top-2 right-1.5 hidden rounded p-1 text-slate-400 group-hover:block hover:bg-white hover:text-rose-600"
+              class="absolute top-2 right-1.5 hidden rounded p-1 text-slate-400 group-hover:block hover:bg-surface hover:text-rose-600"
               title="删除学习记录"
               @click="removing = item"
             >
@@ -126,7 +126,7 @@
         <EmptyState v-else-if="!loading" title="选择学习模式和章节" description="从零学习按章节分段讲解；正常复习用回忆题巩固；考前冲刺直击考点。学习进度会保存在本机。" />
       </div>
 
-      <aside v-if="active?.mode === 'learn' && outline.length" class="hidden w-60 shrink-0 overflow-y-auto border-l border-slate-200 bg-white p-3 lg:block" aria-label="本次学习内容">
+      <aside v-if="active?.mode === 'learn' && outline.length" class="hidden w-60 shrink-0 overflow-y-auto border-l border-slate-200 bg-surface p-3 lg:block" aria-label="本次学习内容">
         <p class="text-xs font-semibold text-slate-500">本次内容 · 已讲 {{ taughtCount }}/{{ outline.length }}</p>
         <p class="mt-0.5 text-[11px] text-slate-400">点击任一部分可以直接讲解它</p>
         <ol class="mt-2 space-y-1">

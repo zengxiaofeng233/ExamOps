@@ -40,7 +40,7 @@
               <div v-if="advice.focus.length" class="mt-3 rounded-lg bg-indigo-50/60 p-3">
                 <p class="text-xs font-medium text-indigo-700">建议优先复习</p>
                 <p class="mt-1 flex flex-wrap gap-1.5">
-                  <span v-for="point in advice.focus" :key="point.id" class="badge bg-white text-indigo-700">{{ point.title }}</span>
+                  <span v-for="point in advice.focus" :key="point.id" class="badge bg-surface text-indigo-700">{{ point.title }}</span>
                 </p>
                 <button class="btn btn-primary btn-sm mt-2" @click="quiz({ course_id: course.id, origin: 'review', knowledge_point_ids: advice.focus.map(f => f.id) })">做这些知识点的小测</button>
               </div>

@@ -9,7 +9,7 @@
           <div v-if="state?.current_step" class="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4 md:col-span-3">
             <p class="text-xs text-indigo-700">当前路径「{{ state.active_path?.name }}」的下一步 · 已完成 {{ state.active_path?.done_count }}/{{ state.active_path?.step_count }}</p>
             <p class="mt-1 flex flex-wrap items-center gap-2">
-              <span class="badge bg-white text-indigo-700">{{ state.current_step.kind_label }}</span>
+              <span class="badge bg-surface text-indigo-700">{{ state.current_step.kind_label }}</span>
               <span class="font-medium text-slate-900">{{ state.current_step.title }}</span>
               <span v-if="state.current_step.estimated_minutes" class="text-xs text-slate-500">约 {{ state.current_step.estimated_minutes }} 分钟</span>
             </p>

@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <header class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-4 py-2.5">
+    <header class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-surface px-4 py-2.5">
       <input
         v-if="conversation"
         v-model="title"
@@ -12,17 +12,17 @@
       <slot name="header" :conversation="conversation" />
       <label class="flex items-center gap-1 text-xs text-slate-500">
         上下文
-        <select v-model="contextMode" class="rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-700" @change="saveContextMode">
+        <select v-model="contextMode" class="rounded-md border border-slate-200 bg-surface px-1.5 py-1 text-xs text-slate-700" @change="saveContextMode">
           <option value="auto">自动</option>
           <option value="full">全文</option>
           <option value="rag">检索</option>
         </select>
       </label>
       <div v-if="showScope && conversation?.mode === 'qa'" ref="scopeBox" class="relative">
-        <button class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-700 hover:bg-slate-50" :aria-expanded="scopeOpen" @click="scopeOpen = !scopeOpen">
+        <button class="rounded-md border border-slate-200 bg-surface px-2 py-1 text-xs text-slate-700 hover:bg-slate-50" :aria-expanded="scopeOpen" @click="scopeOpen = !scopeOpen">
           资料：{{ scopeLabel }}
         </button>
-        <div v-if="scopeOpen" class="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+        <div v-if="scopeOpen" class="absolute right-0 z-20 mt-1 w-72 rounded-lg border border-slate-200 bg-surface p-2 shadow-lg">
           <label class="flex items-center gap-2 rounded px-2 py-1.5 text-sm hover:bg-slate-50">
             <input type="checkbox" class="accent-indigo-600" :checked="!scopeDocs.length" @change="setScope([])" />全部资料
           </label>
@@ -34,7 +34,7 @@
       </div>
       <label v-if="models.profiles.length > 1" class="flex items-center gap-1 text-xs text-slate-500">
         模型
-        <select v-model="profileId" class="max-w-36 rounded-md border border-slate-200 bg-white px-1.5 py-1 text-xs text-slate-700" @change="saveProfile">
+        <select v-model="profileId" class="max-w-36 rounded-md border border-slate-200 bg-surface px-1.5 py-1 text-xs text-slate-700" @change="saveProfile">
           <option :value="0">默认（{{ models.defaultProfile?.name }}）</option>
           <option v-for="p in models.profiles" :key="p.id" :value="p.id">{{ p.name }}</option>
         </select>

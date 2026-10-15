@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0">
-    <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div class="space-y-2 border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" @click="startNew"><PlusIcon class="size-4" />添加网课</button>
         <p class="text-[11px] leading-4 text-slate-500">保存网课链接、时间戳和笔记。视频在浏览器中打开观看，ExamOps 不嵌入网站。</p>

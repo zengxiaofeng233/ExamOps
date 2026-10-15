@@ -1103,7 +1103,7 @@ dependencies = [
 
 [[package]]
 name = "exam-ops"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "base64 0.22.1",
  "chrono",
@@ -1112,6 +1112,7 @@ dependencies = [
  "regex",
  "reqwest 0.12.28",
  "rusqlite",
+ "semver",
  "serde",
  "serde_json",
  "tauri",

@@ -39,3 +39,10 @@ export interface LastLocation {
   course_id: number | null
   saved_at?: string
 }
+
+export interface AvailableUpdate {
+  current_version: string
+  version: string
+  release_url: string
+  asset_name: string
+}

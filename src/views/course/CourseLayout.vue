@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <header class="border-b border-slate-200 bg-white px-6 pt-4">
+    <header class="border-b border-slate-200 bg-surface px-6 pt-4">
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div class="min-w-0">
           <RouterLink to="/courses" class="text-xs text-slate-500 hover:text-indigo-600">我的课程</RouterLink>

@@ -6,6 +6,14 @@
   --font-sans: "Segoe UI", "Microsoft YaHei UI", "Microsoft YaHei", "PingFang SC",
     "Noto Sans CJK SC", "Noto Sans SC", system-ui, sans-serif;
   --font-mono: "Cascadia Code", Consolas, "Noto Sans Mono CJK SC", ui-monospace, monospace;
+  --color-surface: #ffffff;
+  --color-primary: oklch(51.1% 0.262 276.966);
+  --color-primary-hover: oklch(45.7% 0.24 277.023);
+  --color-danger: oklch(58.6% 0.253 17.585);
+  --color-danger-hover: oklch(51.4% 0.222 16.935);
+  --color-overlay: oklch(20.8% 0.042 265.755);
+  --color-code-surface: oklch(20.8% 0.042 265.755);
+  --color-code-text: oklch(96.8% 0.007 247.896);
 }
 
 :root {
@@ -16,6 +24,57 @@
   text-rendering: optimizeLegibility;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Shared utilities inherit the active palette, including teleported dialogs.
+   Strong action colors and document images keep their original colors. */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --color-surface: #141e2f;
+  --color-slate-50: #0b1220;
+  --color-slate-100: #1e293b;
+  --color-slate-200: #334155;
+  --color-slate-300: #475569;
+  --color-slate-400: #94a3b8;
+  --color-slate-500: #a0aec0;
+  --color-slate-600: #bdc8d8;
+  --color-slate-700: #d5deea;
+  --color-slate-800: #e2e8f0;
+  --color-slate-900: #f1f5f9;
+  --color-indigo-50: #20223f;
+  --color-indigo-100: #2d3158;
+  --color-indigo-200: #3c4275;
+  --color-indigo-300: #6366a5;
+  --color-indigo-600: #a5b4fc;
+  --color-indigo-700: #c7d2fe;
+  --color-indigo-800: #c7d2fe;
+  --color-indigo-900: #e0e7ff;
+  --color-emerald-50: #102d29;
+  --color-emerald-100: #164038;
+  --color-emerald-200: #236052;
+  --color-emerald-300: #34836c;
+  --color-emerald-600: #34d399;
+  --color-emerald-700: #6ee7b7;
+  --color-emerald-800: #a7f3d0;
+  --color-amber-50: #302719;
+  --color-amber-200: #6b4b13;
+  --color-amber-300: #946b22;
+  --color-amber-600: #fbbf24;
+  --color-amber-700: #fcd34d;
+  --color-amber-800: #fde68a;
+  --color-orange-50: #36251a;
+  --color-orange-600: #fb923c;
+  --color-orange-700: #fdba74;
+  --color-rose-50: #351d2a;
+  --color-rose-200: #713047;
+  --color-rose-300: #a84b65;
+  --color-rose-600: #fda4af;
+  --color-rose-700: #fecdd3;
+  --color-rose-800: #ffe4e6;
+  --color-sky-50: #132b3b;
+  --color-sky-200: #215578;
+  --color-sky-600: #38bdf8;
+  --color-sky-700: #7dd3fc;
 }
 
 html,
@@ -40,13 +99,13 @@ body {
     @apply px-2.5 py-1 text-xs;
   }
   .btn-primary {
-    @apply bg-indigo-600 text-white hover:bg-indigo-700;
+    @apply bg-primary text-white hover:bg-primary-hover;
   }
   .btn-secondary {
-    @apply border border-slate-300 bg-white text-slate-700 hover:bg-slate-50;
+    @apply border border-slate-300 bg-surface text-slate-700 hover:bg-slate-50;
   }
   .btn-danger {
-    @apply bg-rose-600 text-white hover:bg-rose-700;
+    @apply bg-danger text-white hover:bg-danger-hover;
   }
   .btn-ghost {
     @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
@@ -56,11 +115,11 @@ body {
   }
 
   .card {
-    @apply rounded-xl border border-slate-200 bg-white shadow-sm;
+    @apply rounded-xl border border-slate-200 bg-surface shadow-sm;
   }
 
   .input {
-    @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:bg-slate-100;
+    @apply w-full rounded-lg border border-slate-300 bg-surface px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 disabled:bg-slate-100;
   }
   .label {
     @apply mb-1.5 block text-sm font-medium text-slate-700;
@@ -81,7 +140,7 @@ body {
   }
 }
 
-/* Scrollbars that fit the light UI (WebView2 / Chromium). */
+/* Scrollbars follow the active palette (WebView2 / Chromium). */
 ::-webkit-scrollbar {
   width: 10px;
   height: 10px;
@@ -143,10 +202,10 @@ body {
   @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[13px] text-slate-800;
 }
 .prose-chat pre {
-  @apply overflow-x-auto rounded-lg bg-slate-900 p-3 text-[13px] leading-6 text-slate-100;
+  @apply overflow-x-auto rounded-lg bg-code-surface p-3 text-[13px] leading-6 text-code-text;
 }
 .prose-chat pre code {
-  @apply bg-transparent p-0 text-slate-100;
+  @apply bg-transparent p-0 text-code-text;
 }
 .prose-chat blockquote {
   @apply border-l-4 border-slate-200 pl-3 text-slate-600;

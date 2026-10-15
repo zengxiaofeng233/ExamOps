@@ -21,6 +21,7 @@ mod settings;
 mod sidecar;
 mod study;
 mod tutor;
+mod updates;
 #[cfg(test)]
 mod test_support;
 
@@ -62,6 +63,7 @@ fn main() {
             commands::app::get_app_settings,
             commands::app::update_app_settings,
             commands::app::get_app_info,
+            commands::app::check_for_updates,
             commands::app::open_data_dir,
             commands::app::open_external_url,
             commands::app::save_last_location,

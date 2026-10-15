@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0">
-    <aside class="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-white">
+    <aside class="flex w-72 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div class="border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" @click="creating = true"><PlusIcon class="size-4" />新建学习路径</button>
       </div>
@@ -40,7 +40,7 @@
               <p class="flex flex-wrap items-center gap-2">
                 <span class="badge" :class="MODE_CLASSES[detail.path.mode]">{{ MODE_LABELS[detail.path.mode] }}</span>
                 <span class="text-xs text-slate-400">{{ ORIGIN_LABELS[detail.path.origin] ?? '' }}</span>
-                <span v-if="detail.path.id === activePathId" class="badge bg-indigo-600 text-white">当前路径</span>
+                <span v-if="detail.path.id === activePathId" class="badge bg-primary text-white">当前路径</span>
               </p>
               <h2 class="mt-1.5 text-lg font-semibold text-slate-900">{{ detail.path.name }}</h2>
               <p v-if="detail.path.description" class="mt-0.5 text-sm text-slate-500">{{ detail.path.description }}</p>

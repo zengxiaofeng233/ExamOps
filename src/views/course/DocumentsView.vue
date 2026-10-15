@@ -1,7 +1,7 @@
 <template>
   <div class="flex h-full min-h-0">
     <!-- Library -->
-    <aside v-show="showLibrary" class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-white xl:w-72">
+    <aside v-show="showLibrary" class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-surface xl:w-72">
       <div class="space-y-2 border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" :disabled="importing" @click="importFiles">
           <ArrowUpTrayIcon class="size-4" />{{ importing ? '正在导入…' : '导入资料' }}
@@ -35,7 +35,7 @@
 
     <!-- Reader / search -->
     <section class="flex min-w-0 flex-1 flex-col">
-      <form class="flex items-center gap-2 border-b border-slate-200 bg-white px-3 py-2.5" role="search" @submit.prevent="runSearch">
+      <form class="flex items-center gap-2 border-b border-slate-200 bg-surface px-3 py-2.5" role="search" @submit.prevent="runSearch">
         <button
           v-if="documents.length"
           type="button"
@@ -55,7 +55,7 @@
           placeholder="在本课程资料中检索关键词，例如：导数 几何意义"
           aria-label="检索资料"
         />
-        <select v-model="searchScope" class="rounded-md border border-slate-200 bg-white px-2 py-1 text-xs text-slate-600" aria-label="检索范围">
+        <select v-model="searchScope" class="rounded-md border border-slate-200 bg-surface px-2 py-1 text-xs text-slate-600" aria-label="检索范围">
           <option value="all">全部资料</option>
           <option value="current" :disabled="!selected">当前资料</option>
         </select>

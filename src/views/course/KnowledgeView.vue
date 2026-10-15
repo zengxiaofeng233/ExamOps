@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-5 py-3">
+    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-surface px-5 py-3">
       <div class="flex flex-wrap gap-1" role="tablist" aria-label="按状态筛选">
         <button
           v-for="item in filters"
@@ -8,7 +8,7 @@
           role="tab"
           :aria-selected="filter === item.value"
           class="rounded-full px-3 py-1 text-xs font-medium transition-colors"
-          :class="filter === item.value ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
+          :class="filter === item.value ? 'bg-primary text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'"
           @click="filter = item.value"
         >
           {{ item.label }} {{ item.count }}

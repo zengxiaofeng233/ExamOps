@@ -5,7 +5,7 @@
     </span>
   </div>
   <div v-else-if="message.role === 'user'" class="flex justify-end">
-    <div class="max-w-[85%] rounded-2xl rounded-br-md bg-indigo-600 px-4 py-2.5 text-[15px] leading-7 break-words whitespace-pre-wrap text-white">{{ message.content }}</div>
+    <div class="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-7 break-words whitespace-pre-wrap text-white">{{ message.content }}</div>
   </div>
   <div v-else class="flex gap-3">
     <div class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-[11px] font-bold text-white">AI</div>

@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full flex-col">
-    <header class="flex items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-4">
+    <header class="flex items-center justify-between gap-4 border-b border-slate-200 bg-surface px-6 py-4">
       <div>
         <h1 class="page-title">我的课程</h1>
         <p class="mt-0.5 text-sm text-slate-500">每门课程独立管理资料、学习路径和复习记录。</p>

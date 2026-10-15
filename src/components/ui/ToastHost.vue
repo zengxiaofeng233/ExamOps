@@ -4,7 +4,7 @@
       v-for="toast in store.toasts"
       :key="toast.id"
       role="status"
-      class="pointer-events-auto flex items-start gap-2 rounded-lg border bg-white px-3 py-2.5 text-sm shadow-lg"
+      class="pointer-events-auto flex items-start gap-2 rounded-lg border bg-surface px-3 py-2.5 text-sm shadow-lg"
       :class="{
         'border-emerald-200': toast.kind === 'success',
         'border-rose-200': toast.kind === 'error',
