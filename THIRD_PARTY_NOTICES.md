@@ -376,7 +376,7 @@ SOFTWARE.
 | vue-demi | 0.14.10 | MIT |
 | vue-router | 4.6.4 | MIT |
 
-## 文档处理组件中的 Python 包（27 个）
+## 文档处理组件中的 Python 包（28 个）
 
 标注 MPL-2.0 的组件未经修改，其源代码可从 PyPI 获取。
 
@@ -386,6 +386,7 @@ SOFTWARE.
 | PyYAML | 6.0.3 | MIT License |
 | certifi | 2026.7.22 | Mozilla Public License 2.0 (MPL 2.0) |
 | charset-normalizer | 3.5.2 | MIT |
+| colorama | 0.4.6 | BSD License |
 | colorlog | 6.12.0 | MIT License |
 | flatbuffers | 25.12.19 | Apache Software License |
 | idna | 3.20 | BSD-3-Clause |
