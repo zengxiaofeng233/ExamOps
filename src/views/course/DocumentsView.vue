@@ -97,8 +97,8 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { open } from '@tauri-apps/plugin-dialog'
 import { ArrowUpTrayIcon, Bars3Icon, MagnifyingGlassIcon } from '@heroicons/vue/20/solid'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
@@ -108,24 +108,26 @@ import SearchResults from '@/components/documents/SearchResults.vue'
 import { DocumentService } from '@/services/document'
 import { StudyService } from '@/services/study'
 import { useToastStore } from '@/stores/toast'
+import { useDocumentTasksStore } from '@/stores/documentTasks'
 import type { Course } from '@/types/models'
-import type { Document, ImportProgress, SearchHit, SearchResult } from '@/types/document'
+import type { Document, SearchHit, SearchResult } from '@/types/document'
 import { FILE_LABELS, STATUS_LABELS, UNIT_NAMES } from '@/utils/documents'
-import { errorMessage } from '@/utils/errors'
 
 const props = defineProps<{ course: Course }>()
 const route = useRoute()
 const router = useRouter()
 const toast = useToastStore()
+const tasks = useDocumentTasksStore()
+const courseTasks = computed(() => tasks.forCourse(props.course.id))
 
 const documents = ref<Document[]>([])
 const loading = ref(true)
-const importing = ref(false)
-const reprocessing = ref(false)
+const importing = computed(() => courseTasks.value.importing)
+const reprocessing = computed(() => courseTasks.value.reprocessing)
 const deleting = ref(false)
 const confirmDelete = ref(false)
-const importStatus = ref('')
-const progress = reactive<Record<number, ImportProgress>>({})
+const importStatus = computed(() => courseTasks.value.importStatus)
+const progress = tasks.progress
 const targetPage = ref<number | null>(null)
 const query = ref('')
 const searchScope = ref<'all' | 'current'>('all')
@@ -165,10 +167,29 @@ const showLibrary = computed(() => {
 
 let poll: ReturnType<typeof setInterval> | undefined
 let reportedPage: number | null = null
+let active = true
+
+function isCurrentPage() {
+  return active && route.name === 'documents' && Number(route.params.id) === props.course.id
+}
 
 async function refresh() {
   documents.value = await DocumentService.list(props.course.id)
 }
+
+// Poll only the visible page. Returning during a task immediately resumes its progress display.
+watch(() => importing.value || reprocessing.value, busy => {
+  clearInterval(poll)
+  if (busy) poll = setInterval(() => refresh().catch(() => undefined), 1500)
+}, { immediate: true })
+
+watch(() => courseTasks.value.revision, async () => {
+  try {
+    await refresh()
+    const id = courseTasks.value.lastImportedId
+    if (isCurrentPage() && !selected.value && !searchResult.value && !searching.value && id) openDocument(id)
+  } catch { /* the next refresh can retry */ }
+})
 
 onMounted(async () => {
   narrowQuery = window.matchMedia(NARROW)
@@ -176,6 +197,7 @@ onMounted(async () => {
   narrowQuery.addEventListener('change', syncNarrow)
   try {
     await refresh()
+    if (!isCurrentPage()) return
     targetPage.value = Number(route.query.page) || null
     reportedPage = targetPage.value
     if (route.query.q) highlight.value = String(route.query.q).split(/\s+/).filter(Boolean)
@@ -191,11 +213,10 @@ onMounted(async () => {
 })
 
 onBeforeUnmount(() => {
+  active = false
   clearInterval(poll)
   narrowQuery?.removeEventListener('change', syncNarrow)
 })
-// Keep the page that owns the sequential import queue alive until it is finished.
-onBeforeRouteLeave(() => !importing.value)
 
 // Navigation from elsewhere (citations, learning steps) changes doc/page in the URL.
 watch(() => [route.query.doc, route.query.page], ([, page]) => {
@@ -208,6 +229,7 @@ watch(() => [route.query.doc, route.query.page], ([, page]) => {
 })
 
 function openDocument(id: number, page?: number) {
+  if (!isCurrentPage()) return
   libraryOpenWhenNarrow.value = false
   searchResult.value = null
   targetPage.value = page ?? null
@@ -238,11 +260,8 @@ function progressText(id: number) {
   return `正在解析：第 ${p.current}/${p.total} ${unit}`
 }
 
-function onProgress(p: ImportProgress) {
-  progress[p.document_id] = p
-}
-
 async function importFiles() {
+  const courseId = props.course.id
   let files: string[] = []
   try {
     const picked = await open({ multiple: true, directory: false, filters: [
@@ -254,53 +273,12 @@ async function importFiles() {
     toast.error(e)
     return
   }
-  importing.value = true
-  poll = setInterval(() => refresh().catch(() => undefined), 1500)
-  let failures = 0
-  const errors: string[] = []
-  try {
-    for (let index = 0; index < files.length; index++) {
-      const filename = files[index].split(/[\\/]/).pop()
-      importStatus.value = `正在导入 ${index + 1}/${files.length}：${filename}（扫描页需要 OCR，请稍候）`
-      try {
-        const document = await DocumentService.import(props.course.id, files[index], onProgress)
-        if (document.status === 'failed') {
-          failures++
-          errors.push(`${filename}：${document.error ?? '解析失败'}`)
-        }
-        await refresh()
-        if (index === files.length - 1 || !selected.value) openDocument(document.id)
-      } catch (e) {
-        failures++
-        errors.push(`${filename}：${errorMessage(e)}`)
-      }
-    }
-    importStatus.value = ''
-    if (failures) toast.error(`导入完成：${files.length - failures} 个成功，${failures} 个失败。\n${errors.join('\n')}`)
-    else toast.success(`已导入 ${files.length} 份资料`)
-  } finally {
-    clearInterval(poll)
-    importing.value = false
-    await refresh().catch(() => undefined)
-  }
+  await tasks.importFiles(courseId, files)
 }
 
 async function reprocess() {
   if (!selected.value) return
-  reprocessing.value = true
-  const id = selected.value.id
-  poll = setInterval(() => refresh().catch(() => undefined), 1500)
-  try {
-    const document = await DocumentService.reprocess(id, onProgress)
-    if (document.status === 'failed') toast.error(document.error ?? '解析失败')
-    else toast.success('已重新解析')
-  } catch (e) {
-    toast.error(e)
-  } finally {
-    clearInterval(poll)
-    reprocessing.value = false
-    await refresh().catch(() => undefined)
-  }
+  await tasks.reprocess(props.course.id, selected.value.id)
 }
 
 async function removeSelected() {

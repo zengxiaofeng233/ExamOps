@@ -22,7 +22,12 @@
       </div>
       <div>
         <label class="label" for="p-url">接口地址（Base URL）</label>
-        <input id="p-url" v-model="form.base_url" class="input font-mono" required placeholder="https://api.example.com/v1" />
+        <div class="flex gap-2">
+          <input id="p-url" v-model="form.base_url" class="input min-w-0 flex-1 font-mono" required placeholder="https://api.example.com/v1" />
+          <button type="button" class="btn btn-secondary shrink-0" :disabled="fetchingModels || !form.base_url.trim()" @click="fetchModels">
+            {{ fetchingModels ? '获取中…' : '获取模型' }}
+          </button>
+        </div>
         <p class="hint">填写到 <code>/v1</code> 一级即可，系统会自动补全 <code>/chat/completions</code>。</p>
       </div>
       <div>
@@ -41,6 +46,16 @@
           <span v-if="removeKey" class="text-rose-600">（保存后删除）</span>
         </p>
       </div>
+      <div v-if="availableModels.length">
+        <label class="label" for="p-available-models">可用模型（{{ availableModels.length }}）</label>
+        <select id="p-available-models" class="input" :value="availableModels.includes(form.model) ? form.model : ''" @change="form.model = ($event.target as HTMLSelectElement).value">
+          <option disabled value="">选择模型以填入模型名称</option>
+          <option v-for="model in availableModels" :key="model" :value="model">{{ model }}</option>
+        </select>
+        <p class="hint">列表由服务商返回；是否支持对话及调用权限请使用“测试连接”确认。也可手动填写模型名称。</p>
+      </div>
+      <p v-if="modelListMessage" class="text-sm text-slate-600" role="status">{{ modelListMessage }}</p>
+      <p v-if="modelListError" class="text-sm text-rose-600" role="alert">{{ modelListError }} 可继续手动填写模型名称。</p>
       <details class="rounded-lg border border-slate-200 px-4 py-3" :open="advancedOpen">
         <summary class="cursor-pointer text-sm font-medium text-slate-700">模型参数与 Token 预算</summary>
         <div class="mt-3 grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -114,6 +129,20 @@ const apiKey = ref('')
 const removeKey = ref(false)
 const saving = ref(false)
 const testing = ref(false)
+const fetchingModels = ref(false)
+const availableModels = ref<string[]>([])
+const modelListMessage = ref('')
+const modelListError = ref('')
+let modelListRequest = 0
+
+// Discard results belonging to an old address, key, or dialog session.
+watch(() => [props.open, props.profile?.id, form.base_url, apiKey.value, removeKey.value], () => {
+  modelListRequest++
+  fetchingModels.value = false
+  availableModels.value = []
+  modelListMessage.value = ''
+  modelListError.value = ''
+}, { flush: 'sync' })
 const error = ref('')
 const advancedOpen = ref(false)
 const testResult = ref<{ ok: boolean; latency?: number; reply?: string; error?: string } | null>(null)
@@ -145,6 +174,27 @@ function applyPreset(label: string) {
 function payload(): ProfileInput {
   const key = apiKey.value.trim()
   return { ...form, api_key: key ? key : removeKey.value ? '' : props.profile ? null : '' }
+}
+
+async function fetchModels() {
+  const request = ++modelListRequest
+  fetchingModels.value = true
+  availableModels.value = []
+  modelListMessage.value = ''
+  modelListError.value = ''
+  const input = payload()
+  try {
+    const models = await ModelService.fetchModels({
+      id: input.id, base_url: input.base_url, api_key: input.api_key, timeout_secs: input.timeout_secs
+    })
+    if (request !== modelListRequest) return
+    availableModels.value = models
+    if (!models.length) modelListMessage.value = '服务商返回的模型列表为空，可手动填写模型名称。'
+  } catch (e) {
+    if (request === modelListRequest) modelListError.value = errorMessage(e)
+  } finally {
+    if (request === modelListRequest) fetchingModels.value = false
+  }
 }
 
 async function test() {

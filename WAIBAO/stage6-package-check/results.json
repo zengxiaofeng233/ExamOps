@@ -1,0 +1,27 @@
+[
+  {
+    "file": "笔记.md",
+    "status": "pass",
+    "pages": 2
+  },
+  {
+    "file": "讲义.docx",
+    "status": "pass",
+    "pages": 3
+  },
+  {
+    "file": "课件.pptx",
+    "status": "pass",
+    "pages": 1
+  },
+  {
+    "file": "扫描.pdf",
+    "status": "pass",
+    "pages": 2
+  },
+  {
+    "check": "PDF page rendering",
+    "status": "pass",
+    "pages": 2
+  }
+]

@@ -6,7 +6,7 @@ use tauri::{AppHandle, Manager};
 pub mod migrations;
 
 /// Locations of everything ExamOps stores on disk. All paths live under the
-/// per-user application data directory (`%APPDATA%\com.examops.app` on Windows).
+/// chosen data directory (defaults to `%APPDATA%\com.examops.app` on Windows).
 #[derive(Debug, Clone)]
 pub struct AppPaths {
     pub data_dir: PathBuf,
@@ -32,7 +32,9 @@ impl AppPaths {
             .path()
             .app_data_dir()
             .map_err(|e| format!("无法定位应用数据目录：{e}"))?;
-        Ok(AppPaths::new(dir))
+        let (storage, paths) = crate::storage::StorageState::start(dir).map_err(|e| e.to_string())?;
+        app_handle.manage(storage);
+        Ok(paths)
     }
 
     pub fn connect(&self) -> Result<Connection> {

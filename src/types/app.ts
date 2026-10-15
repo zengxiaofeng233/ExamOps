@@ -40,6 +40,11 @@ export interface LastLocation {
   saved_at?: string
 }
 
+export interface StorageInfo {
+  pending_dir: string | null
+  previous_dirs: string[]
+}
+
 export interface AvailableUpdate {
   current_version: string
   version: string

@@ -1,7 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
 import type {
   ChatEvent, ContextMode, Conversation, ConversationDetail, ConversationScope, Message, ModelProfile,
-  ProfileInput, SaveProfileResult, TestReport, TutorMode, UsageSummary
+  ModelListInput, ProfileInput, SaveProfileResult, TestReport, TutorMode, UsageSummary
 } from '@/types/ai'
 import type { LessonPart, StartTeachingInput, TeachAction } from '@/types/study'
 
@@ -11,6 +11,7 @@ export const ModelService = {
   remove: (id: number) => invoke<void>('delete_model_profile', { id }),
   setDefault: (id: number) => invoke<void>('set_default_model_profile', { id }),
   test: (input: ProfileInput) => invoke<TestReport>('test_model_profile', { input }),
+  fetchModels: (input: ModelListInput) => invoke<string[]>('fetch_available_models', { input }),
   usage: () => invoke<UsageSummary>('get_ai_usage')
 }
 

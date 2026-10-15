@@ -115,6 +115,29 @@ pub fn endpoint(base_url: &str) -> Result<String, GatewayError> {
     }
 }
 
+#[derive(Deserialize)]
+pub struct ModelListInput {
+    pub id: Option<i64>,
+    pub base_url: String,
+    pub api_key: Option<String>,
+    pub timeout_secs: u64,
+}
+
+/// Accept the same base paths as chat configuration, including a full chat URL.
+pub fn models_endpoint(base_url: &str) -> Result<String, GatewayError> {
+    let trimmed = base_url.trim();
+    let mut parsed = url::Url::parse(trimmed).map_err(|_| GatewayError::InvalidUrl(trimmed.to_string()))?;
+    if !matches!(parsed.scheme(), "http" | "https") || parsed.host_str().is_none() {
+        return Err(GatewayError::InvalidUrl(trimmed.to_string()));
+    }
+    let path = parsed.path().trim_end_matches('/');
+    let base = path.strip_suffix("/chat/completions").unwrap_or(path);
+    let path = format!("{base}/models");
+    parsed.set_path(&path);
+    parsed.set_fragment(None);
+    Ok(parsed.into())
+}
+
 pub fn validate(input: &ProfileInput) -> AppResult<()> {
     if input.name.trim().is_empty() {
         return Err(AppError::invalid("请填写配置名称"));
@@ -324,6 +347,16 @@ mod tests {
         assert_eq!(endpoint("http://localhost:11434/v1/chat/completions").unwrap(), "http://localhost:11434/v1/chat/completions");
         assert!(endpoint("ftp://x").is_err());
         assert!(endpoint("not a url").is_err());
+    }
+
+    #[test]
+    fn model_discovery_endpoints_preserve_provider_prefixes() {
+        assert_eq!(models_endpoint(" https://api.example.com/v1/ ").unwrap(), "https://api.example.com/v1/models");
+        assert_eq!(models_endpoint("http://localhost:11434/v1/chat/completions/").unwrap(), "http://localhost:11434/v1/models");
+        assert_eq!(models_endpoint("https://example.com/api/paas/v4").unwrap(), "https://example.com/api/paas/v4/models");
+        assert_eq!(models_endpoint("https://example.com/v1?region=cn").unwrap(), "https://example.com/v1/models?region=cn");
+        assert!(models_endpoint("file:///tmp/models").is_err());
+        assert!(models_endpoint("").is_err());
     }
 
     #[test]

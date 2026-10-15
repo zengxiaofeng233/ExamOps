@@ -68,7 +68,7 @@ SOFTWARE.
 | RapidOCR / PP-OCR 模型 | 随 rapidocr 分发 | Apache-2.0 | https://github.com/RapidAI/RapidOCR |
 | KaTeX（含字体） | 随界面分发 | MIT | https://github.com/KaTeX/KaTeX |
 
-## Rust 依赖（Windows 可执行文件，253 个）
+## Rust 依赖（Windows 可执行文件，255 个）
 
 “A OR B” 表示可任选其一的双许可证。标注 MPL-2.0 的组件未经修改，其源代码可从 crates.io 获取。
 
@@ -184,6 +184,7 @@ SOFTWARE.
 | lock_api | 0.4.14 | MIT OR Apache-2.0 |
 | log | 0.4.34 | MIT OR Apache-2.0 |
 | markup5ever | 0.39.0 | MIT OR Apache-2.0 |
+| md5 | 0.7.0 | Apache-2.0 OR MIT |
 | memchr | 2.8.3 | Unlicense OR MIT |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
 | miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
@@ -212,6 +213,7 @@ SOFTWARE.
 | powerfmt | 0.2.1 | MIT OR Apache-2.0 |
 | precomputed-hash | 0.1.1 | MIT |
 | proc-macro2 | 1.0.107 | MIT OR Apache-2.0 |
+| qrcode | 0.14.1 | MIT OR Apache-2.0 |
 | quick-xml | 0.42.0 | MIT |
 | quote | 1.0.47 | MIT OR Apache-2.0 |
 | raw-window-handle | 0.6.2 | MIT OR Apache-2.0 OR Zlib |

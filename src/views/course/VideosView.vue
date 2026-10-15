@@ -19,7 +19,7 @@
               <p class="mt-0.5 truncate text-xs text-slate-500">{{ item.section_title ?? '未关联章节' }}</p>
               <p class="mt-0.5 flex gap-2 text-[11px] text-slate-400">
                 <span>{{ item.marks.length }} 个时间戳</span>
-                <span :class="hasText(item) ? 'text-emerald-600' : 'text-amber-600'">{{ hasText(item) ? '有字幕/笔记' : '无字幕/笔记' }}</span>
+                <span :class="hasText(item) ? 'text-emerald-600' : 'text-amber-600'">{{ hasText(item) ? '有文字资料' : '无文字资料' }}</span>
               </p>
             </button>
           </li>
@@ -36,7 +36,7 @@
               <RouterLink
                 :to="{ name: 'learn', params: { id: course.id }, query: { mode: 'learn', resource: current.id } }"
                 class="btn btn-soft btn-sm"
-                :title="hasText(current) ? '' : '还没有字幕或笔记，AI 无法讲解视频内容'"
+                :title="hasText(current) ? '' : '还没有字幕、总结或笔记，AI 无法讲解视频内容'"
               >
                 <AcademicCapIcon class="size-4" />AI 学习这节网课
               </RouterLink>
@@ -57,6 +57,26 @@
                 </button>
               </div>
             </div>
+            <div v-if="bilibiliVideo" class="space-y-2 sm:col-span-2">
+              <BilibiliLogin @logged-in="readBilibili(true)" />
+              <div class="flex flex-wrap items-center gap-2">
+                <button type="button" class="btn btn-soft btn-sm" :disabled="textJob?.pending" @click="readBilibili(true)">
+                  {{ textJob?.pending ? '正在读取网课文字…' : '读取字幕 / AI 总结' }}
+                </button>
+                <span class="text-xs text-slate-500">只读取链接所指的分 P；未指定时读取 P1。</span>
+              </div>
+              <p v-if="textJob?.pending" class="hint" role="status">正在后台尝试读取字幕或总结，你可以继续填写、保存或使用其他页面。</p>
+              <p v-if="textJob?.error" class="text-xs text-amber-700" role="status">{{ textJob.error }}</p>
+              <div v-if="textJob?.result" class="space-y-2 rounded-lg bg-indigo-50 p-3 text-xs text-indigo-700">
+                <p role="status">{{ textJob.result.notice }}</p>
+                <p v-if="!form.transcript.includes(textJob.result.transcript)">已保留你的现有文字，获取结果尚未加入文字稿。</p>
+                <details>
+                  <summary class="cursor-pointer">查看获取内容</summary>
+                  <pre class="mt-2 max-h-48 overflow-y-auto whitespace-pre-wrap break-words font-sans">{{ textJob.result.transcript }}</pre>
+                </details>
+                <button v-if="!form.transcript.includes(textJob.result.transcript)" type="button" class="btn btn-secondary btn-sm" @click="appendBilibili">追加到文字稿</button>
+              </div>
+            </div>
             <div>
               <label class="label" for="video-section">关联章节</label>
               <SectionSelect id="video-section" v-model="form.section_id" :sections="sections" :max-level="2" />
@@ -70,13 +90,13 @@
             </div>
           </div>
           <div>
-            <label class="label" for="video-transcript">字幕 / 文字稿</label>
+            <label class="label" for="video-transcript">字幕 / 文字稿 / AI 总结</label>
             <textarea
               id="video-transcript"
               v-model="form.transcript"
               class="input font-mono text-xs"
               rows="8"
-              placeholder="粘贴视频的字幕或文字稿（可从视频网站的字幕、AI 字幕功能复制）。AI 讲解网课时只使用这里和笔记中的文字。"
+              placeholder="B 站链接会尝试读取字幕或 AI 总结，也可手动粘贴。AI 讲解网课时只使用已保存的文字和笔记。"
             />
             <p class="hint">{{ form.transcript.length.toLocaleString() }} 字{{ transcriptParts ? `，AI 会分 ${transcriptParts} 部分讲解` : '' }}</p>
           </div>
@@ -137,16 +157,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AcademicCapIcon, ArrowTopRightOnSquareIcon, PlusIcon, TrashIcon } from '@heroicons/vue/20/solid'
 import SectionSelect from '@/components/study/SectionSelect.vue'
+import BilibiliLogin from '@/components/study/BilibiliLogin.vue'
 import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { AppService } from '@/services/app'
 import { DocumentService } from '@/services/document'
 import { KnowledgeService, ResourceService } from '@/services/study'
 import { useToastStore } from '@/stores/toast'
+import { isBilibiliVideo, useBilibiliStore } from '@/stores/bilibili'
 import type { CourseSection } from '@/types/document'
 import type { Course } from '@/types/models'
 import type { KnowledgePoint, Resource, ResourceInput } from '@/types/study'
@@ -159,6 +181,7 @@ const props = defineProps<{ course: Course }>()
 const route = useRoute()
 const router = useRouter()
 const toast = useToastStore()
+const bilibili = useBilibiliStore()
 
 const resources = ref<Resource[]>([])
 const sections = ref<CourseSection[]>([])
@@ -169,6 +192,38 @@ const confirmDelete = ref(false)
 const form = ref<ResourceInput | null>(null)
 const markForm = reactive({ time: '', label: '', note: '', knowledge_point_id: null as number | null })
 const markError = ref('')
+const bilibiliVideo = computed(() => isBilibiliVideo(form.value?.url ?? ''))
+const textJob = computed(() => bilibili.jobs[form.value?.url.trim() ?? ''])
+let textTimer: ReturnType<typeof setTimeout> | undefined
+let active = true
+
+watch(() => [form.value, form.value?.url], () => {
+  clearTimeout(textTimer)
+  if (bilibiliVideo.value && !form.value?.transcript.trim()) {
+    textTimer = setTimeout(() => readBilibili(), 700)
+  }
+})
+
+onBeforeUnmount(() => { active = false; clearTimeout(textTimer) })
+
+async function readBilibili(retry = false) {
+  const target = form.value
+  if (!target || !isBilibiliVideo(target.url)) return
+  clearTimeout(textTimer)
+  const url = target.url.trim()
+  const before = target.transcript
+  const result = await bilibili.fetchText(url, retry)
+  // A slow reply must never overwrite another resource or text typed while fetching.
+  if (!result || !active || form.value !== target || target.url.trim() !== url) return
+  if (!target.title.trim()) target.title = result.title
+  if (!before.trim() && target.transcript === before) target.transcript = result.transcript
+}
+
+function appendBilibili() {
+  const result = textJob.value?.result
+  if (!form.value || !result || form.value.transcript.includes(result.transcript)) return
+  form.value.transcript = [form.value.transcript, result.transcript].filter(Boolean).join('\n\n')
+}
 
 const selectedId = computed(() => Number(route.query.r) || null)
 const current = computed(() => resources.value.find(r => r.id === form.value?.id) ?? null)

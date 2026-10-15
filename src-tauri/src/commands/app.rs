@@ -6,6 +6,30 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tauri::{AppHandle, Manager, State};
 use tauri_plugin_opener::OpenerExt;
+use crate::storage::{StorageInfo, StorageState};
+use std::path::PathBuf;
+
+/// 获取待迁移位置和可手动清理的旧数据目录。
+#[tauri::command]
+pub fn get_storage_info(storage: State<'_, StorageState>) -> AppResult<StorageInfo> {
+    storage.info()
+}
+
+/// 选择空文件夹，在退出后下次启动时迁移；传 null 取消待迁移计划。
+#[tauri::command]
+pub async fn schedule_data_migration(app_handle: AppHandle, directory: Option<PathBuf>) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app_handle.state::<StorageState>().schedule(&app_handle.state::<AppPaths>(), directory)
+    }).await?
+}
+
+/// 用户确认后清理已迁移的旧副本；如旧数据有变化则拒绝删除。
+#[tauri::command]
+pub async fn cleanup_previous_data(app_handle: AppHandle, directory: PathBuf) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app_handle.state::<StorageState>().cleanup(&app_handle.state::<AppPaths>(), directory)
+    }).await?
+}
 
 #[derive(Debug, Serialize)]
 pub struct AppInfo {

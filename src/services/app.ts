@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import type { AppInfo, AppSettings, AvailableUpdate, LastLocation } from '@/types/app'
+import type { AppInfo, AppSettings, AvailableUpdate, LastLocation, StorageInfo } from '@/types/app'
 
 export const AppService = {
   settings: () => invoke<AppSettings>('get_app_settings'),
@@ -7,6 +7,9 @@ export const AppService = {
   info: () => invoke<AppInfo>('get_app_info'),
   checkUpdates: () => invoke<AvailableUpdate | null>('check_for_updates'),
   openDataDir: () => invoke<void>('open_data_dir'),
+  storageInfo: () => invoke<StorageInfo>('get_storage_info'),
+  scheduleMigration: (directory: string | null) => invoke<void>('schedule_data_migration', { directory }),
+  cleanupPreviousData: (directory: string) => invoke<void>('cleanup_previous_data', { directory }),
   openExternal: (url: string) => invoke<void>('open_external_url', { url }),
   saveLocation: (location: LastLocation) => invoke<void>('save_last_location', { location }),
   lastLocation: () => invoke<LastLocation | null>('get_last_location'),

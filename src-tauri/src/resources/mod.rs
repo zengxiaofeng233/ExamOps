@@ -1,6 +1,6 @@
 //! External course videos and links. ExamOps stores the link, timestamps and the
-//! student's own subtitles / notes; it never embeds the website. The AI may only
-//! use the pasted transcript and notes, never guess a video's content from its URL.
+//! student's subtitles / notes and explicitly labelled Bilibili text; it never
+//! embeds the website or guesses a video's content from its URL.
 
 use crate::context::{excerpt, BuiltContext, SourceRef};
 use crate::error::{AppError, AppResult, OptionalRow};
@@ -247,13 +247,26 @@ pub fn relevant_parts(parts: &[String], query: &str, limit: usize) -> Vec<usize>
     picked
 }
 
-/// The student's transcript parts / notes / timestamps as fenced teaching
+pub fn transcript_label(resource: &Resource) -> &'static str {
+    let text = resource.transcript.trim_start();
+    if text.starts_with(crate::bilibili::SUMMARY_HEADER) {
+        "B站 AI 总结（非完整字幕）"
+    } else if text.contains(crate::bilibili::SUMMARY_HEADER) {
+        "文字稿（含 B站 AI 总结）"
+    } else if text.starts_with(crate::bilibili::SUBTITLE_HEADER) {
+        "B站字幕"
+    } else {
+        "字幕/文字稿"
+    }
+}
+
+/// The saved transcript parts / notes / timestamps as fenced teaching
 /// material. Returns `None` when there is nothing the AI may use.
 pub fn material(resource: &Resource, transcript: &[usize], first_label: usize) -> Option<BuiltContext> {
     let mut parts: Vec<(String, String)> = Vec::new();
     let pieces = transcript_parts(resource);
     for index in transcript.iter().copied().filter(|i| *i < pieces.len()) {
-        parts.push((format!("字幕/文字稿 第 {}/{} 段", index + 1, pieces.len()), pieces[index].clone()));
+        parts.push((format!("{} 第 {}/{} 段", transcript_label(resource), index + 1, pieces.len()), pieces[index].clone()));
     }
     if !resource.notes.trim().is_empty() {
         parts.push(("学习笔记".into(), resource.notes.trim().chars().take(NOTES_CHARS).collect()));
@@ -273,6 +286,9 @@ pub fn material(resource: &Resource, transcript: &[usize], first_label: usize) -
     let mut sources = Vec::new();
     for (offset, (kind, body)) in parts.into_iter().enumerate() {
         let label = format!("S{}", first_label + offset);
+        let source = if kind == "学习笔记" || kind == "时间戳笔记" || transcript_label(resource) == "字幕/文字稿" {
+            "用户提供的文字"
+        } else { transcript_label(resource) };
         text.push_str(&format!(
             "<<<资料 {label} | 网课《{}》· {kind}>>>\n{}\n<<<{label} 结束>>>\n\n",
             resource.title.replace("<<<", "«<").replace(">>>", ">»"),
@@ -287,7 +303,7 @@ pub fn material(resource: &Resource, transcript: &[usize], first_label: usize) -
             section_title: Some(kind),
             page_start: 0,
             page_end: 0,
-            loc_label: "用户提供的文字".into(),
+            loc_label: source.into(),
             excerpt: excerpt(&body, 160),
             cited: false,
         });
@@ -326,6 +342,12 @@ mod tests {
         let built = material(&video, &[], 3).unwrap();
         assert!(built.text.contains("12:34 几何意义 切线斜率"));
         assert_eq!(built.sources[0].label, "S3");
+        // Provenance must survive splitting, even when a later part has no header.
+        let mut summary_video = video.clone();
+        summary_video.transcript = format!("{}\n{}", crate::bilibili::SUMMARY_HEADER, "摘要内容".repeat(800));
+        let summary = material(&summary_video, &[1], 1).unwrap();
+        assert!(summary.text.contains("B站 AI 总结（非完整字幕） 第 2/"));
+        assert_eq!(summary.sources[0].loc_label, "B站 AI 总结（非完整字幕）");
         // Transcripts are split on line boundaries and searched by shared terms.
         let video = save(&conn, ResourceInput {
             id: Some(video.id), course_id: 1, kind: None, title: "导数精讲".into(), url: String::new(), section_id: None,

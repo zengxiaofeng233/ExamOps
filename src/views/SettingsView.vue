@@ -78,8 +78,23 @@
                 <dt class="text-slate-500">资料副本</dt>
                 <dd class="text-slate-700">{{ formatBytes(info.documents_bytes) }}</dd>
               </dl>
-              <p class="hint mt-3">备份时关闭 ExamOps 后复制整个数据目录即可。卸载时可选择是否删除该目录（默认保留）。</p>
-              <button class="btn btn-secondary mt-4" @click="openDir">打开数据目录</button>
+              <p class="hint mt-3">备份时关闭 ExamOps 后复制整个数据目录即可。可以将数据库、资料和预览缓存迁移到其他磁盘。</p>
+              <div class="mt-4 flex flex-wrap gap-2">
+                <button class="btn btn-secondary" @click="openDir">打开数据目录</button>
+                <button class="btn btn-secondary" :disabled="storageBusy || !storage" @click="chooseDirectory">更改存储位置</button>
+              </div>
+              <div v-if="storage?.pending_dir" class="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-slate-700" role="status">
+                <p>下次启动时迁移到：</p>
+                <p class="mt-1 break-all font-mono text-xs">{{ storage.pending_dir }}</p>
+                <p class="mt-2">请等待导入、AI 生成等任务完成，关闭所有 ExamOps 窗口后重新打开。迁移期间启动可能较慢，请勿关闭程序。当前仍使用原目录。</p>
+                <button class="btn btn-secondary mt-3" :disabled="storageBusy" @click="cancelMigration">取消迁移</button>
+              </div>
+              <p class="hint mt-3">迁移成功后旧数据暂时保留，可在此确认清理。系统目录仍会保留定位配置及运行时文件。</p>
+              <div v-for="directory in storage?.previous_dirs ?? []" :key="directory" class="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-700">
+                <p>迁移已完成，旧副本尚未清理：</p>
+                <p class="mt-1 break-all font-mono text-xs">{{ directory }}</p>
+                <button class="btn btn-secondary mt-3" :disabled="storageBusy" @click="cleanupDirectory = directory">清理旧数据</button>
+              </div>
             </section>
           </template>
 
@@ -132,6 +147,12 @@
     <AppModal :open="notices !== null" title="开源许可" size="xl" @close="notices = null">
       <MarkdownContent v-if="notices" :text="notices" class="text-sm" />
     </AppModal>
+    <ConfirmDialog :open="selectedDirectory !== null" title="更改存储位置" confirm-text="确认，下次启动迁移"
+      :busy="storageBusy" :message="`将数据库、资料副本、图片和缓存整体迁移到：\n${selectedDirectory ?? ''}\n\n请选择空文件夹。原始导入文件不移动，旧数据在验证成功后仍会保留，供你另行确认清理。\n\n确认后请等待当前任务完成，再关闭并重新打开 ExamOps。`"
+      @cancel="!storageBusy && (selectedDirectory = null)" @confirm="scheduleMigration" />
+    <ConfirmDialog :open="cleanupDirectory !== null" title="清理旧数据" confirm-text="确认清理" danger
+      :busy="storageBusy" :message="`请先确认新目录中的资料、图片和学习记录正常。\n\n将删除以下旧目录中已迁移且未变化的数据库、资料副本和缓存：\n${cleanupDirectory ?? ''}\n\n当前数据、原始导入文件和其他文件不会删除。此操作无法撤销。`"
+      @cancel="!storageBusy && (cleanupDirectory = null)" @confirm="cleanupPrevious" />
   </div>
 </template>
 
@@ -141,11 +162,13 @@ import { useRoute, useRouter } from 'vue-router'
 import MarkdownContent from '@/components/chat/MarkdownContent.vue'
 import ModelSettings from '@/components/settings/ModelSettings.vue'
 import AppModal from '@/components/ui/AppModal.vue'
+import ConfirmDialog from '@/components/ui/ConfirmDialog.vue'
+import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '@/stores/app'
 import { useToastStore } from '@/stores/toast'
 import { useUpdateStore } from '@/stores/updates'
 import { AppService } from '@/services/app'
-import type { AppInfo, AppSettings } from '@/types/app'
+import type { AppInfo, AppSettings, StorageInfo } from '@/types/app'
 import { QUESTION_KIND_HINTS, QUESTION_KIND_LABELS, TRIGGER_LABELS } from '@/utils/assessment'
 import { formatBytes } from '@/utils/format'
 
@@ -165,6 +188,48 @@ const router = useRouter()
 const active = ref<SectionId>(sections.some(s => s.id === route.query.section) ? (route.query.section as SectionId) : 'models')
 watch(active, (section) => router.replace({ query: { section } }))
 const info = ref<AppInfo | null>(null)
+const storage = ref<StorageInfo | null>(null)
+const storageBusy = ref(false)
+const selectedDirectory = ref<string | null>(null)
+const cleanupDirectory = ref<string | null>(null)
+
+async function chooseDirectory() {
+  try {
+    const directory = await open({ directory: true, multiple: false, title: '选择新的数据存储位置（空文件夹）' })
+    if (typeof directory === 'string') selectedDirectory.value = directory
+  } catch (e) { toast.error(e) }
+}
+
+async function scheduleMigration() {
+  if (!selectedDirectory.value || storageBusy.value) return
+  storageBusy.value = true
+  try {
+    await AppService.scheduleMigration(selectedDirectory.value)
+    selectedDirectory.value = null
+    storage.value = await AppService.storageInfo()
+    toast.success('已安排迁移，请等待任务完成后关闭并重新打开 ExamOps')
+  } catch (e) { toast.error(e) } finally { storageBusy.value = false }
+}
+
+async function cancelMigration() {
+  storageBusy.value = true
+  try {
+    await AppService.scheduleMigration(null)
+    storage.value = await AppService.storageInfo()
+    toast.success('已取消迁移')
+  } catch (e) { toast.error(e) } finally { storageBusy.value = false }
+}
+
+async function cleanupPrevious() {
+  if (!cleanupDirectory.value || storageBusy.value) return
+  storageBusy.value = true
+  try {
+    await AppService.cleanupPreviousData(cleanupDirectory.value)
+    cleanupDirectory.value = null
+    storage.value = await AppService.storageInfo()
+    toast.success('旧数据已清理')
+  } catch (e) { toast.error(e) } finally { storageBusy.value = false }
+}
 /** Plain copy (reactive proxies cannot be structured-cloned). */
 const clone = <T,>(value: T): T => JSON.parse(JSON.stringify(value))
 const form = reactive<AppSettings>(clone(app.settings))
@@ -173,6 +238,7 @@ onMounted(async () => {
   if (!app.ready) await app.load().catch(() => undefined)
   Object.assign(form, clone(app.settings))
   info.value = await AppService.info().catch((e) => { toast.error(e); return null })
+  storage.value = await AppService.storageInfo().catch((e) => { toast.error(e); return null })
 })
 
 async function save() {

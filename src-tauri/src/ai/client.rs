@@ -118,6 +118,33 @@ impl Gateway {
         Gateway { http }
     }
 
+    /// Read the provider's model catalogue without generating tokens or saving a profile.
+    pub async fn list_models(&self, endpoint: &str, api_key: Option<&str>, timeout_secs: u64) -> Result<Vec<String>, GatewayError> {
+        let mut request = self.http.get(endpoint).timeout(Duration::from_secs(timeout_secs.clamp(10, 900)));
+        if let Some(key) = api_key.filter(|key| !key.is_empty()) {
+            request = request.bearer_auth(key);
+        }
+        let response = request.send().await.map_err(map_reqwest)?;
+        let status = response.status();
+        let body = response.text().await.map_err(map_reqwest)?;
+        if !status.is_success() {
+            return Err(GatewayError::from_status(status.as_u16(), &body));
+        }
+        let value: Value = serde_json::from_str(&body)
+            .map_err(|_| GatewayError::InvalidResponse("模型列表不是有效的 JSON".into()))?;
+        let data = value.get("data").and_then(Value::as_array)
+            .ok_or_else(|| GatewayError::InvalidResponse("接口未返回兼容 OpenAI 的模型列表（data）".into()))?;
+        let mut models = Vec::with_capacity(data.len());
+        for item in data {
+            let id = item.get("id").and_then(Value::as_str).filter(|id| !id.trim().is_empty())
+                .ok_or_else(|| GatewayError::InvalidResponse("模型列表中缺少有效的模型名称（id）".into()))?;
+            models.push(id.to_string());
+        }
+        models.sort();
+        models.dedup();
+        Ok(models)
+    }
+
     fn body(profile: &ResolvedProfile, messages: &[ChatMessage], options: &ChatOptions, stream: bool, compat: Compat) -> Value {
         let mut body = json!({
             "model": profile.model,
@@ -424,6 +451,30 @@ mod tests {
 
     fn ask() -> [ChatMessage; 1] {
         [ChatMessage::user("hi")]
+    }
+
+    #[tokio::test]
+    async fn model_discovery_uses_get_and_handles_catalogue_errors() {
+        let server = MockServer::start(vec![
+            MockReply::Status(200, r#"{"data":[{"id":"z"},{"id":"a"},{"id":"z"}]}"#.into()),
+            MockReply::Status(200, r#"{"data":[]}"#.into()),
+            MockReply::Status(401, "invalid key".into()),
+            MockReply::Status(404, "unsupported".into()),
+            MockReply::Status(200, r#"{"data":[{"name":"missing id"}]}"#.into()),
+            MockReply::Status(200, "<html>not a catalogue</html>".into()),
+        ]).await;
+        let gateway = Gateway::new();
+        let url = format!("{}/models", server.url());
+        assert_eq!(gateway.list_models(&url, Some("test-key"), 10).await.unwrap(), vec!["a", "z"]);
+        let request = server.last_request();
+        assert!(request.headers.starts_with("get /v1/models "));
+        assert!(request.headers.to_lowercase().contains("authorization: bearer test-key"));
+        assert!(request.body.is_empty());
+        assert!(gateway.list_models(&url, None, 10).await.unwrap().is_empty());
+        assert!(!server.last_request().headers.to_lowercase().contains("authorization:"));
+        for kind in ["auth", "not_found", "invalid_response", "invalid_response"] {
+            assert_eq!(gateway.list_models(&url, None, 10).await.unwrap_err().kind(), kind);
+        }
     }
 
     #[tokio::test]

@@ -1,0 +1,26 @@
+[
+  {
+    "file": "笔记.md",
+    "status": "success",
+    "version": 2,
+    "pages": 2
+  },
+  {
+    "file": "讲义.docx",
+    "status": "success",
+    "version": 2,
+    "pages": 3
+  },
+  {
+    "file": "课件.pptx",
+    "status": "success",
+    "version": 2,
+    "pages": 1
+  },
+  {
+    "file": "扫描.pdf",
+    "status": "success",
+    "version": 2,
+    "pages": 2
+  }
+]

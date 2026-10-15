@@ -51,6 +51,25 @@ pub async fn test_model_profile(paths: State<'_, AppPaths>, ai: State<'_, AiStat
     Ok(report)
 }
 
+/// 获取接口的模型列表；无需先填写模型名称或保存配置，密钥留空时复用同一地址的已存密钥。
+#[tauri::command]
+pub async fn fetch_available_models(paths: State<'_, AppPaths>, ai: State<'_, AiState>, input: profiles::ModelListInput) -> AppResult<Vec<String>> {
+    let endpoint = profiles::models_endpoint(&input.base_url)?;
+    let key = match (input.api_key, input.id) {
+        (Some(key), _) if !key.trim().is_empty() => Some(key.trim().to_string()),
+        (None, Some(id)) => {
+            let conn = paths.connect()?;
+            let saved = profiles::get(&conn, id)?;
+            if saved.has_key && profiles::models_endpoint(&saved.base_url)? != endpoint {
+                return Err(crate::error::AppError::invalid("接口地址已改变，请填写该地址的 API Key 后获取模型"));
+            }
+            profiles::resolve(&conn, ai.secrets.as_ref(), Some(id))?.api_key
+        }
+        _ => None,
+    };
+    Ok(ai.gateway.list_models(&endpoint, key.as_deref(), input.timeout_secs).await?)
+}
+
 /// Token 用量统计（今天 / 累计）。
 #[tauri::command]
 pub fn get_ai_usage(app_handle: AppHandle) -> AppResult<ai::UsageSummary> {

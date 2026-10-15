@@ -135,9 +135,10 @@ impl Lesson {
                 (title, loc, chunks[range].iter().map(|c| c.content.chars().count()).sum())
             }
             Lesson::Video { resource, parts } if parts.is_empty() => ("学习笔记与时间戳".to_string(), "用户提供的文字".to_string(), resource.notes.chars().count()),
-            Lesson::Video { parts, .. } => {
+            Lesson::Video { resource, parts } => {
                 let first_line: String = parts[index].lines().next().unwrap_or("").chars().take(24).collect();
-                (format!("字幕第 {} 段：{first_line}", index + 1), format!("第 {}/{} 段", index + 1, parts.len()), parts[index].chars().count())
+                let label = match resources::transcript_label(resource) { "字幕/文字稿" => "字幕", label => label };
+                (format!("{label}第 {} 段：{first_line}", index + 1), format!("第 {}/{} 段", index + 1, parts.len()), parts[index].chars().count())
             }
         };
         LessonPart { index, title, loc_label, chars, status: String::new() }

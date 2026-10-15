@@ -24,6 +24,8 @@ futures = "0.3"
 regex = "1"
 base64 = "0.22"
 url = "2"
+md5 = "0.7"
+qrcode = { version = "0.14", default-features = false, features = ["svg"] }
 tokio-util = "0.7"
 keyring = "4"
 

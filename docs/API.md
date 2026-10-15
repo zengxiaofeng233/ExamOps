@@ -22,6 +22,7 @@
 | `delete_model_profile` | `id`: i64 | () | 删除模型配置及其保存的 API Key。 |
 | `set_default_model_profile` | `id`: i64 | () | 设为默认模型。 |
 | `test_model_profile` | `input`: profiles::ProfileInput | TestReport | 测试连接（使用表单中尚未保存的值；未填写 API Key 时使用已保存的）。 |
+| `fetch_available_models` | `input`: profiles::ModelListInput | Vec<String> | 获取接口的模型列表；无需先填写模型名称或保存配置，密钥留空时复用同一地址的已存密钥。 |
 | `get_ai_usage` | — | ai::UsageSummary | Token 用量统计（今天 / 累计）。 |
 | `list_conversations` | `courseId`: i64 | Vec<Conversation> | 课程的全部对话（AI 问答与 AI 学习）。 |
 | `create_conversation` | `input`: tutor::CreateConversation | Conversation | 新建问答对话。 |
@@ -38,6 +39,9 @@
 
 | 命令 | 参数 | 返回 | 说明 |
 | --- | --- | --- | --- |
+| `get_storage_info` | — | StorageInfo | 获取待迁移位置和可手动清理的旧数据目录。 |
+| `schedule_data_migration` | `directory`: Option<PathBuf> | () | 选择空文件夹，在退出后下次启动时迁移；传 null 取消待迁移计划。 |
+| `cleanup_previous_data` | `directory`: PathBuf | () | 用户确认后清理已迁移的旧副本；如旧数据有变化则拒绝删除。 |
 | `get_app_settings` | — | AppSettings | 应用设置。 |
 | `update_app_settings` | `settings`: AppSettings | AppSettings | 保存应用设置（数值会被校正到允许范围）。 |
 | `get_app_info` | — | AppInfo | 版本、数据目录、数据库与资料占用、数据库结构版本。 |
@@ -66,6 +70,17 @@
 | `get_review_queue` | `courseId`: i64 | ReviewQueue | 复习队列与概况（到期、薄弱、疑难、学过未测、错题）。 |
 | `get_recommendations` | `courseId`: i64 | Vec<Action> | 下一步建议（由学习状态按规则生成，可直接执行）。 |
 | `get_ai_advice` | `courseId`: i64 | Advice | AI 学习建议与优先复习的知识点（只保留本课程存在的知识点）。 |
+
+### `commands/bilibili.rs`
+
+| 命令 | 参数 | 返回 | 说明 |
+| --- | --- | --- | --- |
+| `get_bilibili_session` | — | Session | 检查本机保存的 B 站登录是否有效，不返回凭据。 |
+| `start_bilibili_login` | — | LoginQr | 创建 B 站登录二维码（在本机渲染）。 |
+| `poll_bilibili_login` | `key`: String | LoginPoll | 检查扫码状态，成功后将凭据保存到系统凭据管理器。 |
+| `cancel_bilibili_login` | `key`: String | () | 取消当前二维码，防止已关闭的登录请求保存凭据。 |
+| `forget_bilibili_login` | — | () | 清除本应用保存的 B 站登录凭据（不影响浏览器登录）。 |
+| `fetch_bilibili_text` | `url`: String | VideoText | 读取链接所指分 P 的字幕，失败时尝试 AI 总结；不修改网课记录。 |
 
 ### `commands/course.rs`
 

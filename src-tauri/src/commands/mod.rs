@@ -4,6 +4,7 @@
 pub mod ai;
 pub mod app;
 pub mod assessment;
+pub mod bilibili;
 pub mod course;
 pub mod document;
 pub mod study;

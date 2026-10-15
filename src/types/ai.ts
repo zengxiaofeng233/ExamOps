@@ -35,6 +35,13 @@ export interface ProfileInput {
   api_key: string | null
 }
 
+export interface ModelListInput {
+  id: number | null
+  base_url: string
+  api_key: string | null
+  timeout_secs: number
+}
+
 export interface SaveProfileResult {
   profile: ModelProfile
   warning: string | null

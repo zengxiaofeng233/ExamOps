@@ -3,6 +3,7 @@
 
 mod ai;
 mod assessment;
+mod bilibili;
 mod commands;
 mod context;
 mod database;
@@ -20,6 +21,7 @@ mod security;
 mod settings;
 mod sidecar;
 mod study;
+mod storage;
 mod tutor;
 mod updates;
 #[cfg(test)]
@@ -35,10 +37,18 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(documents::DocumentTasks::default())
+        .manage(bilibili::BilibiliState::default())
         .manage(commands::document::PreviewLimiter::default())
         .manage(ai::AiState::new(Arc::new(security::KeyringStore)))
         .setup(|app| {
-            let paths = database::AppPaths::resolve(app.handle())?;
+            let paths = match database::AppPaths::resolve(app.handle()) {
+                Ok(paths) => paths,
+                Err(error) => {
+                    app.dialog().message(&error).title("ExamOps 无法启动")
+                        .kind(MessageDialogKind::Error).blocking_show();
+                    return Err(error.into());
+                }
+            };
             if let Err(error) = database::init_database(&paths) {
                 // Without a working database nothing else can run; tell the user why.
                 app.dialog()
@@ -60,11 +70,20 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            commands::bilibili::get_bilibili_session,
+            commands::bilibili::start_bilibili_login,
+            commands::bilibili::poll_bilibili_login,
+            commands::bilibili::cancel_bilibili_login,
+            commands::bilibili::forget_bilibili_login,
+            commands::bilibili::fetch_bilibili_text,
             commands::app::get_app_settings,
             commands::app::update_app_settings,
             commands::app::get_app_info,
             commands::app::check_for_updates,
             commands::app::open_data_dir,
+            commands::app::get_storage_info,
+            commands::app::schedule_data_migration,
+            commands::app::cleanup_previous_data,
             commands::app::open_external_url,
             commands::app::save_last_location,
             commands::app::get_last_location,
@@ -91,6 +110,7 @@ fn main() {
             commands::ai::delete_model_profile,
             commands::ai::set_default_model_profile,
             commands::ai::test_model_profile,
+            commands::ai::fetch_available_models,
             commands::ai::get_ai_usage,
             commands::ai::list_conversations,
             commands::ai::create_conversation,
