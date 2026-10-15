@@ -16,6 +16,7 @@ from __future__ import annotations
 import argparse
 import json
 import re
+import shutil
 import subprocess
 import sys
 from pathlib import Path
@@ -132,6 +133,8 @@ RUNTIMES = [
 
 
 def run(cmd: list[str], cwd: Path) -> str:
+    # Windows exposes npm as npm.cmd; CreateProcess does not search PATHEXT.
+    cmd = [shutil.which(cmd[0]) or cmd[0], *cmd[1:]]
     return subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True, encoding="utf-8").stdout
 
 
