@@ -1,112 +1,252 @@
-# ExamOps
+# 🎓 ExamOps
 
-基于个人学习资料的 AI 智能复习桌面软件（Windows）。
+<div align="center">
 
-导入自己的教材、PPT、讲义和网课笔记，用自己配置的 AI 模型按章节讲解、回答问题、出题测验，并根据掌握情况安排复习。单用户、本地运行：没有账号，没有云端存储，所有数据只保存在本机。
+**基于个人学习资料的本地优先 AI 智能学习与备考工作台**
 
-## 功能
+*Local-First AI Study & Exam Preparation Assistant Powered by Tauri 2 + Rust + Vue 3*
 
-- **资料**：导入 PDF（含扫描版，本地 OCR）、Word、PPT、TXT、Markdown；自动识别章节、提取图片，保留页码 / 幻灯片 / 段落 / 行号位置；全文检索，阅读器支持原页面预览。
-- **AI 问答**：回答只依据你的资料，区分【教材】【补充】【推导】并标注来源编号，点击可跳到原文；流式输出，可随时停止、重新生成。
-- **AI 学习**：从零学习（分段讲解、每段停下来等你）、正常复习（先回忆再纠正）、考前冲刺（必考点与典型题）；也可以根据你提供的字幕和笔记讲解网课。
-- **知识点与学习路径**：从章节标题或用 AI 生成知识点；按章节生成、AI 推荐或手动安排学习路径，可拖动排序、插入、跳过。
-- **测验**：单选、判断、简答、自由复述、情景应用五种题型；客观题自动判分，主观题 AI 批改并给出反馈，失败时可重新批改或自评。
-- **复习**：掌握度与间隔复习（临近考试自动缩短间隔）、薄弱知识点、错题本与错题重练、下一步建议和 AI 复习建议。
-- **网课与笔记**：保存网课链接、字幕、时间戳；B 站链接可自动尝试读取字幕或 AI 总结，支持扫码登录，按链接指定的分 P 获取；笔记支持 Markdown 和公式，并关联资料位置、章节和知识点。
-- **BYOK**：任何兼容 OpenAI Chat Completions 的接口（DeepSeek、通义千问、智谱、Kimi、OpenAI、Ollama 本机模型等）；API Key 保存在 Windows 凭据管理器中。
+[![Release](https://img.shields.io/badge/Release-v0.2.1-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/INSTALL.md)
+[![Tauri](https://img.shields.io/badge/Tauri-v2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app/)
+[![Rust](https://img.shields.io/badge/Rust-2021_Edition-dea584?logo=rust&logoColor=white)](https://www.rust-lang.org/)
+[![Vue 3](https://img.shields.io/badge/Vue-3.5-4FC08D?logo=vuedotjs&logoColor=white)](https://vuejs.org/)
+[![Tailwind CSS](https://img.shields.io/badge/TailwindCSS-v4.0-38B2AC?logo=tailwind-css&logoColor=white)](https://tailwindcss.com/)
 
-## 界面
+[功能特性](#-核心特性) • [界面预览](#-界面预览) • [快速上手](#-快速上手) • [系统架构](#-系统架构) • [开发者指南](#-开发者指南) • [完整文档](#-文档导航)
 
-| 资料阅读 | AI 学习 |
-| --- | --- |
-| ![资料阅读：章节目录与正文](docs/images/reader.png) | ![AI 学习：分段讲解与来源标注](docs/images/learn.png) |
-| **测验结果** | **复习** |
-| ![测验结果：得分与知识点掌握情况](docs/images/quiz.png) | ![复习：复习概况、下一步建议与错题本](docs/images/review.png) |
+</div>
 
-截图中的 AI 内容来自本地模拟服务（`scripts/mock_ai.py`），实际使用时由你配置的模型生成。
+---
 
-## 文档
+## 📖 简介
 
-| 文档 | 内容 |
-| --- | --- |
-| [安装与首次使用](docs/INSTALL.md) | 系统要求、安装、配置模型、数据位置与备份、卸载、常见问题 |
-| [使用指南](docs/USER_GUIDE.md) | 每个页面和功能的用法 |
-| [架构](docs/ARCHITECTURE.md) | 七个引擎、数据模型、主要流程、安全设计 |
-| [命令参考](docs/API.md) | 前端调用的全部 Tauri 命令 |
-| [测试](docs/TESTING.md) | 自动化测试、异常 / 断网 / 持久化测试、模拟 AI 服务、发布前验收 |
-| [更新日志](CHANGELOG.md) | 按路线图阶段记录的变更 |
-| [开发路线图 V1.4](dev_roadmap/v1.4.md) | 需求与阶段划分 |
+**ExamOps** 是一款专为学生和备考人群设计的**单用户、本地运行**的智能复习软件。
 
-## 技术栈
+你只需导入自己的教材、讲义、PPT、笔记或网课链接，通过自己配置的 AI 大模型，即可实现**按章节互动精讲、有据可查的精准答疑、全题型智能自测、以及基于艾宾浩斯曲线的自适应复习调度**。
 
-Tauri 2 · Vue 3 + TypeScript · Tailwind CSS 4 · Pinia · Rust · SQLite + FTS5 · Python Sidecar（PyInstaller 打包，RapidOCR + pypdfium2）· NSIS 安装包
+与市面上的在线学习平台不同，ExamOps 坚持 **Local-First（本地优先）与隐私优先** 理念：**无需注册账号、数据绝不上传云端，所有教材副本、笔记和学习足迹全量保存在本机 SQLite 数据库中**。
 
-## 开发
+### 💡 为什么选择 ExamOps？
 
-### 环境
+- 🔒 **100% 隐私与离线可用**：所有学习资料保存在本机，配合本地模型（如 Ollama / LM Studio）可实现 100% 离线使用。
+- 🎯 **杜绝幻觉，严格溯源**：回答严格基于你的材料，清晰标注【教材】【补充】【推导】，点击即可跳回原书对应页码和段落。
+- 🔄 **闭环式学习工作流**：从资料导入、知识点抽取、路径规划、AI 分段精讲，到测验检验、错题归纳与科学复习，一站搞定。
+- 🔑 **BYOK（自带模型，零厂商锁定）**：支持任何兼容 OpenAI 接口的大模型（DeepSeek、通义千问、智谱 GLM、Kimi、OpenAI 等），API 密钥受 Windows 凭据管理器系统级硬件加密保护。
+- 📑 **全格式深度结构化与本地 OCR**：支持 PDF（含扫描件本地 RapidOCR 识别）、Word、PPT、Markdown、TXT，自动剥离页眉页脚、精准保留章节层级与图表。
 
-- Node.js 20+、Rust（stable）、Python 3.12 x64（只在开发和构建时需要，安装包已内置运行环境）
-- Windows 10/11；Rust 核心和前端也可以在 Linux / macOS 上开发和测试（Linux 需要 `libwebkit2gtk-4.1-dev` 等 Tauri 依赖）
+---
 
-### 常用命令
+## ✨ 核心特性
+
+### 1. 📚 资料中心与智能结构化 (Document Engine)
+- **多格式支持**：一键导入 PDF（文字版及扫描版）、Word (`.docx`)、PowerPoint (`.pptx`)、Markdown 与 TXT。
+- **本地高精度 OCR**：内置随安装包分发的轻量 RapidOCR 引擎，无缝识别扫描件与插图文字，计算全在本地完成。
+- **章节与图表还原**：智能识别 PDF 书签、Word 样式、PPT 页面标题及层级编号；自动提取高清插图并保留原文排版位置。
+- **全文毫秒级检索**：内置 SQLite FTS5 + `unicode61` 中文分词索引，支持原页面对照预览与高亮定位。
+
+### 2. 🤖 三大模式 AI 精讲与网课伴学 (Tutor Engine)
+- **三种学习模式**：
+  - **从零学习**：按章节切分为 ~1500 字的渐进段落，逐段深度剖析，支持追问、案例拓展与实时测验。
+  - **正常复习**：启发式主动回忆引导，先让你尝试复述关键结论，再指出漏洞与补充推导。
+  - **考前冲刺**：直击高频核心考点与典型题型，快速扫清盲区。
+- **严格来源溯源**：流式生成中明确区分【教材原文】、【背景补充】与【逻辑推导】，每个论断均附带资料位置锚点。
+- **B 站网课伴学**：支持扫码登录读取高清分 P 字幕或平台 AI 总结，生成网课专属讲解，与教材资料双向对照。
+- **上下文联动笔记**：笔记支持 Markdown 与 KaTeX 数学公式渲染，并与教材章节、具体页码和知识点深度绑定。
+
+### 3. 🗺️ 知识图谱与动态学习路径 (Path Engine)
+- **智能知识点抽取**：支持从目录快速生成或利用 AI 深度提炼，自动判定重要度（一般 / 重要 / 核心考点）。
+- **个性化路径编排**：提供按章节生成、AI 定制规划（如“考前两周冲刺前四章”）或空白路径三种模式，支持拖拽排序与任务插入。
+- **状态追踪**：严谨区分“未学”、“学过”与“已掌握”（只有通过测验且正确率 $\ge 80\%$ 才能标为已掌握）。
+
+### 4. 📝 全题型智能测验与精准批改 (Assessment Engine)
+- **五大多样化题型**：单选题、判断题、简答题、自由复述题、情景应用题，题目 100% 依凭导入教材自动生成。
+- **双轨批改机制**：
+  - **客观题**：本地瞬间判分，解析详实。
+  - **主观题**：AI 对照教材采分点严格批改，提示词级数据隔离防止注入，批改失败支持人工自评兜底。
+- **小测自由定制**：可自选知识点、按章节出题、或针对历史错题生成同类变式题。
+
+### 5. ⏳ 艾宾浩斯科学复习调度 (Review & Spaced Repetition)
+- **SM-2 间隔复习算法**：根据测验表现（指数移动平均 EMA）计算知识点掌握度，动态安排复习频次（1天 → 3天 → 动态递增）。
+- **临考自适应压缩**：录入考试日期后，系统自适应缩短复习间隔，确保所有核心内容在考前至少完整轮转一遍。
+- **智能错题本**：低于 60% 分数的题目自动沉淀入错题库，重测达标后自动移出，复习建议根据遗忘曲线每日动态更新。
+
+### 6. 🛡️ 存储安全与优雅体验
+- **安全密钥保管**：API Key 优先存入 **Windows 凭据管理器**，界面脱敏展示，彻底告别明文泄漏风险。
+- **灵活的数据迁移**：应用内置数据盘无缝迁移功能，支持一键更改存储目录并提供完整性校验和旧数据清理保护机制。
+- **暗黑模式与流畅动画**：全套适配的深色模式与开屏动画，界面自适应窄屏（最低支持 800×600 布局），长时间沉浸学习更舒适。
+
+---
+
+## 🖼️ 界面预览
+
+| 首页与学习概览 | 资料阅读与原页对照 |
+| :---: | :---: |
+| ![首页与学习概览](docs/images/home.png) | ![资料阅读与原页对照](docs/images/reader.png) |
+| **交互式 AI 学习与来源标注** | **智能测验与批改** |
+| ![交互式 AI 学习与来源标注](docs/images/learn.png) | ![智能测验与批改](docs/images/quiz.png) |
+
+<div align="center">
+
+| 间隔复习、下一步建议与错题本 |
+| :---: |
+| ![间隔复习与错题本](docs/images/review.png) |
+
+*(注：截图中的 AI 对话内容基于本地模拟环境 `scripts/mock_ai.py` 生成，实际使用效果取决于您配置的 AI 模型。)*
+
+</div>
+
+---
+
+## 🚀 快速上手
+
+### 面向普通使用者
+
+1. **下载安装**：前往 [Releases 页面](https://github.com/zengxiaofeng233/ExamOps/releases) 下载最新版本的 `ExamOps_<版本>_x64-setup.exe`。
+   - 安装包内置 WebView2、文档解析程序及 RapidOCR 离线模型，**无需安装 Python、Node.js 等任何开发环境**。
+   - 默认安装到当前用户目录，**无需管理员权限**。
+2. **配置 AI 模型**：
+   - 打开应用，进入 **设置 → AI 模型 → 添加模型**。
+   - 选择预设（DeepSeek、OpenAI、通义千问、智谱、Kimi、硅基流动或本地 Ollama）并填入你的 API Key。
+   - 点击“测试连接”，确认成功后设为默认。
+3. **开启学习之旅**：
+   - **创建课程**：在“我的课程”中新建课程，设定考试目标日期。
+   - **导入资料**：导入教材 PDF 或 PPT，等待解析与 OCR 结构化完成。
+   - **生成路径**：提取知识点并一键生成学习路径。
+   - **开始互动**：点击进入“AI 学习”，享受精准、严谨的伴学体验！
+
+详细说明请参考：📖 [安装与首次使用指南](docs/INSTALL.md) 与 📘 [全功能使用指南](docs/USER_GUIDE.md)。
+
+---
+
+## 🏗️ 系统架构
+
+ExamOps 采用分层解耦的现代化混合桌面应用架构：
+
+```
+┌──────────────────────────────────────────────────────────────┐
+│                  WebView2 桌面交互层 (Vue 3)                  │
+│   课程 · 资料阅读 · 知识图谱 · 学习路径 · AI 伴学 · 测验 · 复习    │
+└──────────────────────────────┬───────────────────────────────┘
+                               │ Tauri IPC (强类型契约)
+┌──────────────────────────────▼───────────────────────────────┐
+│                     Rust 高性能核心层                         │
+│  ├── Document Engine: 资料版本管理、分块切片、引用映射         │
+│  ├── Search Engine: SQLite FTS5 中文全文检索                 │
+│  ├── AI Gateway: SSE 流式解析、上下文预算、错误重试、凭据保护    │
+│  ├── Context Engine: Full / RAG / Auto 动态策略             │
+│  ├── Tutor Engine: 三大模式分段教学、溯源锚点注入              │
+│  ├── Assessment Engine: 5类题型出题、结构校验、主客观双轨批改   │
+│  ├── Review & Mastery: SM-2 遗忘曲线调度、掌握度衰减模型      │
+│  └── Storage Engine: SQLite (WAL 模式) + 自动化版本迁移       │
+└──────────────┬───────────────────────────────┬───────────────┘
+               │ 进程间 JSON RPC 通信           │ HTTPS (仅在调用 AI 时)
+      ┌────────▼─────────┐             ┌───────▼──────────────┐
+      │  Python Sidecar  │             │   用户自有 AI 服务    │
+      │  - RapidOCR 本地 │             │   (DeepSeek/OpenAI/  │
+      │  - PyMuPDF/Word  │             │    Ollama 等兼容端点) │
+      │  - 章节智能推断   │             └──────────────────────┘
+      └──────────────────┘
+```
+
+### 技术栈选型
+
+| 模块 | 核心技术 | 优势 |
+| :--- | :--- | :--- |
+| **桌面运行时** | [Tauri 2](https://tauri.app/) (WebView2) | 超轻量资源占用、秒级冷启动、原生安全性 |
+| **前端交互** | [Vue 3](https://vuejs.org/) + [TypeScript](https://www.typescriptlang.org/) + [Tailwind CSS 4](https://tailwindcss.com/) + [Pinia](https://pinia.vuejs.org/) | 强类型开发、响应式状态、现代化流畅 UI |
+| **核心业务** | [Rust](https://www.rust-lang.org/) (Tokio + Rusqlite + Reqwest) | 内存安全、零成本抽象、无 GC 停顿、高并发 |
+| **本地数据库** | [SQLite](https://www.sqlite.org/) (WAL 模式) + FTS5 | 进程级高并发、中日韩分词全文检索、稳健持久化 |
+| **文档处理 Sidecar** | Python 3.12 (PyInstaller + RapidOCR + pypdfium2) | 离线 OCR、复杂版式识别，随软件打包为独立二进制 |
+| **安全存储** | Windows Credential Manager | 系统级安全凭据保管，防止 API 密钥明文泄露 |
+
+---
+
+## 💻 开发者指南
+
+### 环境准备
+
+- **操作系统**：Windows 10 / 11（64 位）
+- **Node.js**：20.x 或更高版本
+- **Rust**：Stable 工具链（包含 MSVC 构建工具）
+- **Python**：3.12 x64（仅构建 Sidecar 需要）
+
+### 常用开发命令
 
 ```bash
+# 1. 克隆代码仓库并安装前端依赖
+git clone https://github.com/zengxiaofeng233/ExamOps.git
+cd ExamOps
 npm install
-npm run tauri:dev        # 打包文档处理程序（首次会创建 python-sidecar/venv），然后启动开发模式
-npm run tauri -- dev     # 只改前端或 Rust 时使用，复用已打包的文档处理程序
-npm test                 # 前端单元测试；类型检查：npx vue-tsc --noEmit
-cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings
-cd python-sidecar && python -m unittest -v
+
+# 2. 启动开发模式（首次会自动创建 python-sidecar/venv 并打包 Sidecar）
+npm run tauri:dev
+
+# 若仅改动前端或 Rust 代码，可跳过 Sidecar 重新编译：
+npm run tauri -- dev
 ```
 
-没有 API Key 时可以用 `python scripts/mock_ai.py` 启动本地模拟 AI 服务，详见 [测试](docs/TESTING.md#3-本地模拟-ai-服务)。
+### 零成本调试（本地模拟 AI 服务）
 
-### 构建安装包
-
-安装包必须在 Windows x64 上构建：
+开发与调试无需消耗真实 Token！ExamOps 内置了本地 Mock AI 服务：
 
 ```bash
-npm run tauri:build      # 产物：src-tauri/target/release/bundle/nsis/ExamOps_<版本>_x64-setup.exe
+# 启动本地模拟服务（监听 http://127.0.0.1:18080/v1）
+python scripts/mock_ai.py
 ```
 
-也可以在 GitHub Actions 中手动运行 **Windows installer** 工作流，或推送 `v*` 标签自动构建并创建草稿 Release。安装包内置文档处理程序、OCR 模型和 WebView2 离线安装程序，按当前用户安装，不需要管理员权限。
+在 ExamOps 设置中添加模型：Base URL 设为 `http://127.0.0.1:18080/v1`，API Key 填写任意字符（如 `sk-test`），模型名称填 `mock` 即可畅享完整流程测试，还支持模拟网络中断、429 限流等异常场景。
 
-应用启动时后台检查更新，也支持“设置 → 关于 → 检查更新”。只对版本号更高、带有对应 `ExamOps_<版本>_x64-setup.exe` 的正式 Release 提醒，用户点击后在浏览器打开该 Release，自行下载安装；不会自动安装。检查更新仅请求 GitHub 公开版本信息，不发送学习数据或 API Key。
+### 自动化测试与代码规范
 
-发布更新时，请同步 `package.json`、`src-tauri/Cargo.toml` 和 `src-tauri/tauri.conf.json` 的版本（以及对应锁文件），使用一致的 `v<版本>` 标签构建安装包，然后在安装包上传完成后发布草稿 Release。草稿、预发布、只有源码或缺少对应安装包的版本不会触发提醒。
+提交代码前，请确保各项检查通过：
 
-### 目录
+```bash
+# 前端类型检查与单元测试
+npx vue-tsc --noEmit && npm test
 
-```
-ExamOps/
-├── src/                     # Vue 前端：views（页面）、components、stores（Pinia）、services（命令调用）、types、utils
-├── src-tauri/
-│   ├── src/
-│   │   ├── commands/        # Tauri 命令（前端唯一入口）
-│   │   ├── documents/       # Document Engine：导入、结构化、阅读、删除
-│   │   ├── search/          # FTS5 检索与中文分词
-│   │   ├── ai/              # 模型网关：OpenAI 兼容客户端、流式解析、错误映射、模型配置
-│   │   ├── context/         # Context Engine：全文 / 检索 / 自动
-│   │   ├── tutor/           # Tutor Engine：问答与分章教学
-│   │   ├── knowledge/ paths/ resources/ notes/ study/   # 知识点、学习路径、网课、笔记、学习状态
-│   │   ├── assessment/ mastery/ review/                 # 测验、掌握度与间隔复习、复习建议
-│   │   ├── database/        # 连接与版本化迁移
-│   │   └── security/        # API Key 存储
-│   └── migrations/          # 0001–0006 数据库迁移（只新增，不修改已发布的迁移）
-├── python-sidecar/          # 文档解析、章节识别、图片提取、OCR、页面渲染
-├── scripts/                 # 打包文档处理程序、生成命令参考与开源许可、模拟 AI 服务
-└── docs/
+# Rust 代码格式检查与测试
+cd src-tauri && cargo test && cargo clippy --all-targets -- -D warnings
+
+# Python 文档解析单元测试
+cd ../python-sidecar && python -m unittest -v
 ```
 
-### 开发规范
+### 构建正式安装包
 
-- 每个功能在独立分支开发（`feat/*`），通过 Pull Request 合并；CI 在 Ubuntu 和 Windows 上运行全部测试。
-- 数据库结构只通过新增迁移文件修改（`src-tauri/migrations/` 新增文件并在 `database/migrations.rs` 中登记），旧数据自动升级。
-- 前后端数据结构统一定义：Rust 结构体与 `src/types` 中的 TypeScript 类型一一对应；新增命令时同步更新 `src/services` 并运行 `python scripts/command_reference.py` 更新命令参考。
-- 新增或升级依赖后运行 `python scripts/third_party_notices.py` 更新开源许可清单。
+```bash
+npm run tauri:build
+```
+产物将输出至：`src-tauri/target/release/bundle/nsis/ExamOps_<版本>_x64-setup.exe`。
 
-## 许可与致谢
+---
 
-ExamOps 以 [MIT 许可证](LICENSE) 发布。
+## 📚 文档导航
 
-学习方法设计（回答区分教材 / 补充 / 推导、按章节讲解、错题再练等）参考了 [Universal ExamPrep Skill](https://github.com/ZeKaiNie/universal-examprep-skill)（MIT 许可，Copyright (c) 2026 ZeKaiNie）。ExamOps 没有复制其源代码，其版权与许可声明保留在 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) 中，该文件同时列出了所有随软件分发的开源组件及其许可证，并随安装包一起安装，也可以在应用的“设置 → 关于 → 查看开源许可”中查看。
+项目提供了详尽的工程与设计文档，方便进一步阅读：
+
+| 文档名称 | 核心内容 |
+| :--- | :--- |
+| 🚀 [安装与首次使用 (INSTALL.md)](docs/INSTALL.md) | 系统硬件要求、完整安装步骤、模型配置方法、数据目录迁移与备份指引 |
+| 📘 [全功能使用指南 (USER_GUIDE.md)](docs/USER_GUIDE.md) | 涵盖从课程创建、资料导入、AI 伴学到错题本的详尽功能图文用法 |
+| 🏛️ [系统深度架构设计 (ARCHITECTURE.md)](docs/ARCHITECTURE.md) | 七大核心引擎运作机制、数据流动模型与安全防护规范 |
+| 🔌 [Tauri 命令参考 (API.md)](docs/API.md) | 前后端通信的全部 IPC 命令接口说明与入参定义 |
+| 🧪 [测试体系与验收清单 (TESTING.md)](docs/TESTING.md) | 单元测试、模拟 AI 服务故障注入、断网容灾及极端文件健壮性测试规范 |
+
+---
+
+## 📄 开源许可与致谢
+
+ExamOps 基于 [MIT 许可证](LICENSE) 开源。
+
+- **教学方法论参考**：学习交互设计（【教材】【补充】【推导】的三段式归因、章节渐进讲解、自适应错题再练等理念）参考了 [Universal ExamPrep Skill](https://github.com/ZeKaiNie/universal-examprep-skill)（MIT 许可，Copyright (c) 2026 ZeKaiNie）。ExamOps 进行了独立的原生工程实现，特此致谢。
+- **第三方组件许可**：所有随软件分发的开源组件及其协议均收录于 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，并在软件安装后可通过“设置 → 关于 → 查看开源许可”实时查阅。
+
+---
+
+<div align="center">
+
+如果 ExamOps 对你的备考和学习有所启发或帮助，欢迎在 GitHub 上点亮一颗 ⭐️！
+
+</div>
