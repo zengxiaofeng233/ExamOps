@@ -1,5 +1,5 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
-import type { CourseSection, Document, ImportProgress, PageView, SearchResult, Section } from '@/types/document'
+import type { CourseSection, Document, ImportProgress, PageView, SearchResult, Section, SectionEdit } from '@/types/document'
 
 function progressChannel(onProgress?: (progress: ImportProgress) => void) {
   const channel = new Channel<ImportProgress>()
@@ -17,6 +17,8 @@ export const DocumentService = {
     invoke<Document>('reprocess_document', { id, onProgress: progressChannel(onProgress) }),
   remove: (id: number) => invoke<void>('delete_document', { id }),
   sections: (documentId: number) => invoke<Section[]>('get_document_sections', { documentId }),
+  editSection: (documentId: number, sectionId: number, edit: SectionEdit) =>
+    invoke<Section[]>('edit_document_section', { documentId, sectionId, edit }),
   courseSections: (courseId: number) => invoke<CourseSection[]>('get_course_sections', { courseId }),
   pages: (documentId: number, start: number, end: number) =>
     invoke<PageView[]>('get_document_pages', { documentId, start, end }),

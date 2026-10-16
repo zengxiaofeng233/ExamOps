@@ -9,8 +9,6 @@ use std::collections::HashMap;
 /// large enough to carry a complete explanation.
 const MAX_CHUNK: usize = 1000;
 const PAGE_FLUSH: usize = 350;
-/// Long unstructured PDFs get page-range sections so they stay navigable.
-const FALLBACK_GROUP: i64 = 10;
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct SectionDraft {
@@ -21,6 +19,8 @@ pub struct SectionDraft {
     pub page_end: i64,
     pub char_count: usize,
     pub source: String,
+    pub block_start: usize,
+    pub block_end: usize,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -29,6 +29,7 @@ pub struct ChunkDraft {
     pub page_start: i64,
     pub page_end: i64,
     pub text: String,
+    pub unreliable_formula: bool,
 }
 
 #[derive(Debug, Default)]
@@ -97,7 +98,7 @@ impl Builder<'_> {
         }
     }
 
-    fn open_section(&mut self, level: u8, title: &str, page: i64, source: &str) {
+    fn open_section(&mut self, level: u8, title: &str, page: i64, block: usize, source: &str) {
         self.flush();
         while let Some(&top) = self.stack.last() {
             if self.structure.sections[top].level >= level {
@@ -109,6 +110,10 @@ impl Builder<'_> {
         // Slide titles (level 2) and leading level-2 headings hang under a document root.
         if level > 1 && self.stack.is_empty() {
             self.root(page);
+            if let Some(root) = self.structure.sections.last_mut() {
+                root.title = self.title.to_string();
+                root.source = "container".into();
+            }
         }
         let parent = self.stack.last().copied();
         self.structure.sections.push(SectionDraft {
@@ -119,6 +124,8 @@ impl Builder<'_> {
             page_end: page,
             char_count: 0,
             source: source.to_string(),
+            block_start: block,
+            block_end: block,
         });
         self.stack.push(self.structure.sections.len() - 1);
     }
@@ -133,11 +140,14 @@ impl Builder<'_> {
             page_end: page,
             char_count: 0,
             source: if self.has_headings { "derived".into() } else { "fallback".into() },
+            block_start: 0,
+            block_end: 0,
         });
         self.stack.push(self.structure.sections.len() - 1);
     }
 
-    fn add_text(&mut self, text: &str, page: i64) {
+    fn add_text(&mut self, block: &ParsedBlock, page: i64) {
+        let text = &block.text;
         if text.trim().is_empty() {
             return;
         }
@@ -145,7 +155,10 @@ impl Builder<'_> {
             self.root(page);
         }
         let section = self.stack.last().copied();
-        let pieces = if text.chars().count() > MAX_CHUNK { split_long(text) } else { vec![text.to_string()] };
+        let atomic = block.formula || !block.issues.is_empty();
+        let unreliable_formula = atomic && (block.recognition != "native" || !block.issues.is_empty());
+        if atomic { self.flush(); }
+        let pieces = if !atomic && text.chars().count() > MAX_CHUNK { split_long(text) } else { vec![text.to_string()] };
         for piece in pieces {
             let piece_len = piece.chars().count();
             let fits = self
@@ -161,10 +174,11 @@ impl Builder<'_> {
                 }
                 _ => {
                     self.flush();
-                    self.current = Some(ChunkDraft { section, page_start: page, page_end: page, text: piece });
+                    self.current = Some(ChunkDraft { section, page_start: page, page_end: page, text: piece, unreliable_formula });
                 }
             }
         }
+        if atomic { self.flush(); }
     }
 
     fn new_page(&mut self) {
@@ -176,37 +190,7 @@ impl Builder<'_> {
 
 /// Builds sections and chunks. `title` (the file name) names the fallback root.
 pub fn build(pages: &[ParsedPage], loc_kind: &str, title: &str) -> Structure {
-    let mut pages: Vec<ParsedPage> = pages.to_vec();
-    let mut has_headings = pages.iter().any(|p| p.blocks.iter().any(|b| b.heading.is_some()));
-    if has_headings && loc_kind != "slide" {
-        // Promote so the top heading level present becomes a chapter.
-        let min = pages
-            .iter()
-            .flat_map(|p| p.blocks.iter().filter_map(|b| b.heading))
-            .min()
-            .unwrap_or(1);
-        if min > 1 {
-            for block in pages.iter_mut().flat_map(|p| p.blocks.iter_mut()) {
-                if let Some(level) = block.heading.as_mut() {
-                    *level = (*level - (min - 1)).max(1);
-                }
-            }
-        }
-    }
-    if !has_headings && loc_kind == "page" && pages.len() as i64 > FALLBACK_GROUP * 3 {
-        let last = pages.last().map(|p| p.number).unwrap_or(0);
-        for page in pages.iter_mut() {
-            if (page.number - 1) % FALLBACK_GROUP == 0 {
-                let end = (page.number + FALLBACK_GROUP - 1).min(last);
-                page.blocks.insert(0, ParsedBlock {
-                    text: format!("第 {}–{} 页", page.number, end),
-                    heading: Some(2),
-                    kind: "synthetic".into(),
-                });
-            }
-        }
-        has_headings = false;
-    }
+    let has_headings = pages.iter().any(|p| p.blocks.iter().any(|b| b.heading.is_some()));
 
     let mut builder = Builder {
         loc_kind,
@@ -216,18 +200,28 @@ pub fn build(pages: &[ParsedPage], loc_kind: &str, title: &str) -> Structure {
         stack: Vec::new(),
         current: None,
     };
-    for page in &pages {
+    for page in pages {
         builder.new_page();
-        for block in &page.blocks {
+        if page.blocks.is_empty() {
+            for &index in &builder.stack {
+                builder.structure.sections[index].page_end = page.number;
+                builder.structure.sections[index].block_end = 0;
+            }
+        }
+        for (block_index, block) in page.blocks.iter().enumerate() {
             match block.heading {
                 Some(level) if !block.text.trim().is_empty() => {
-                    let source = if block.kind == "synthetic" && !has_headings { "fallback" } else { "detected" };
-                    builder.open_section(level.clamp(1, 6), &block.text, page.number, source);
+                    let source = block.source.as_deref().unwrap_or("detected");
+                    builder.open_section(level.clamp(1, 6), &block.text, page.number, block_index, source);
                     if block.kind != "synthetic" {
-                        builder.add_text(&block.text, page.number);
+                        builder.add_text(block, page.number);
                     }
                 }
-                _ => builder.add_text(&block.text, page.number),
+                _ => builder.add_text(block, page.number),
+            }
+            for &index in &builder.stack {
+                builder.structure.sections[index].page_end = page.number;
+                builder.structure.sections[index].block_end = block_index;
             }
         }
     }
@@ -257,6 +251,50 @@ pub fn build(pages: &[ParsedPage], loc_kind: &str, title: &str) -> Structure {
 }
 
 /// Tables that point at `document_sections`; their references survive re-parsing.
+pub(super) fn stored_sections(conn: &rusqlite::Connection, document_id: i64) -> rusqlite::Result<(Vec<SectionDraft>, Vec<i64>)> {
+    let mut stmt = conn.prepare("SELECT id, parent_id, level, title, page_start, page_end, source, block_start, block_end FROM document_sections WHERE document_id=?1 ORDER BY ordinal")?;
+    let mut sections = Vec::new();
+    let mut ids = Vec::new();
+    let rows = stmt.query_map([document_id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, Option<i64>>(1)?, SectionDraft {
+        level: r.get(2)?, title: r.get(3)?, parent: None, page_start: r.get(4)?, page_end: r.get(5)?,
+        source: r.get(6)?, block_start: r.get(7)?, block_end: r.get(8)?, char_count: 0,
+    })))?;
+    for row in rows {
+        let (id, parent, mut section) = row?;
+        section.parent = parent.and_then(|p| ids.iter().position(|i| *i == p));
+        ids.push(id);
+        sections.push(section);
+    }
+    Ok((sections, ids))
+}
+
+/// Rebuild retrieval against explicit user boundaries without rediscovering headings.
+pub(super) fn build_ranges(pages: &[ParsedPage], loc_kind: &str, title: &str, sections: Vec<SectionDraft>) -> Structure {
+    let mut builder = Builder { loc_kind, title, has_headings: false,
+        structure: Structure { sections, chunks: vec![] }, stack: vec![], current: None };
+    for page in pages {
+        builder.new_page();
+        for (b, block) in page.blocks.iter().enumerate() {
+            let owner = builder.structure.sections.iter().enumerate()
+                .filter(|(_, s)| (s.page_start, s.block_start) <= (page.number, b) && (page.number, b) <= (s.page_end, s.block_end))
+                .max_by_key(|(_, s)| s.level).map(|(i, _)| i);
+            if builder.stack.last().copied() != owner { builder.flush(); }
+            builder.stack = owner.into_iter().collect();
+            if block.kind != "synthetic" { builder.add_text(block, page.number); }
+        }
+    }
+    builder.flush();
+    for chunk in &builder.structure.chunks {
+        let mut cursor = chunk.section;
+        while let Some(i) = cursor {
+            builder.structure.sections[i].char_count += chunk.text.chars().count();
+            cursor = builder.structure.sections[i].parent;
+        }
+    }
+    builder.structure
+}
+
+/// Tables that point at `document_sections`; their references survive re-parsing.
 pub const SECTION_REFERENCES: &[(&str, &str)] = &[
     ("knowledge_points", "section_id"),
     ("resources", "section_id"),
@@ -264,16 +302,18 @@ pub const SECTION_REFERENCES: &[(&str, &str)] = &[
     ("conversations", "section_id"),
     ("notes", "section_id"),
     ("study_state", "current_section_id"),
+    ("quizzes", "section_id"),
+    ("study_events", "section_id"),
 ];
 
 /// Conversation scopes store section ids inside JSON; keep them pointing at
 /// the re-created sections.
-fn remap_conversation_scopes(tx: &Transaction, remapped: &HashMap<i64, i64>) -> rusqlite::Result<()> {
+pub(super) fn remap_conversation_scopes(tx: &Transaction, remapped: &HashMap<i64, i64>) -> rusqlite::Result<()> {
     if remapped.is_empty() {
         return Ok(());
     }
     let scoped: Vec<(i64, String)> = {
-        let mut stmt = tx.prepare("SELECT id, scope FROM conversations WHERE scope LIKE '%section_ids\":[_%'")?;
+        let mut stmt = tx.prepare("SELECT id, scope FROM conversations WHERE scope IS NOT NULL")?;
         let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
         rows.collect::<rusqlite::Result<_>>()?
     };
@@ -288,6 +328,8 @@ fn remap_conversation_scopes(tx: &Transaction, remapped: &HashMap<i64, i64>) -> 
             }
         }
         if changed {
+            let mut seen = std::collections::HashSet::new();
+            sections.retain(|v| seen.insert(v.to_string()));
             tx.execute("UPDATE conversations SET scope = ?1 WHERE id = ?2", params![value.to_string(), id])?;
         }
     }
@@ -300,25 +342,31 @@ fn section_key(level: i64, title: &str) -> String {
 
 /// Replaces the stored structure of a document inside an open transaction.
 pub fn store(tx: &Transaction, document_id: i64, title: &str, extraction: &Extraction) -> rusqlite::Result<Structure> {
-    let structure = build(&extraction.pages, &extraction.loc_kind, title);
+    let locked: bool = tx.query_row("SELECT EXISTS(SELECT 1 FROM document_sections WHERE document_id=?1 AND locked=1)", [document_id], |r| r.get(0))?;
+    let (structure, retained_ids) = if locked {
+        let (sections, ids) = stored_sections(tx, document_id)?;
+        (build_ranges(&extraction.pages, &extraction.loc_kind, title, sections), ids)
+    } else {
+        (build(&extraction.pages, &extraction.loc_kind, title), vec![])
+    };
 
     // Remember old sections so references (knowledge points, path steps, notes...) can be remapped.
-    let old: Vec<(i64, i64, String, i64)> = {
+    let old: Vec<(i64, i64, String, i64, i64)> = {
         let mut stmt = tx.prepare(
-            "SELECT id, level, title, page_start FROM document_sections WHERE document_id = ?1 ORDER BY ordinal",
+            "SELECT id, level, title, page_start, block_start FROM document_sections WHERE document_id = ?1 ORDER BY ordinal",
         )?;
-        let rows = stmt.query_map([document_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?)))?;
+        let rows = stmt.query_map([document_id], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?, r.get(3)?, r.get(4)?)))?;
         rows.collect::<rusqlite::Result<_>>()?
     };
     tx.execute("DELETE FROM document_chunks WHERE document_id = ?1", [document_id])?;
     tx.execute("DELETE FROM document_pages WHERE document_id = ?1", [document_id])?;
     tx.execute("DELETE FROM document_images WHERE document_id = ?1", [document_id])?;
 
-    let mut ids: Vec<i64> = Vec::with_capacity(structure.sections.len());
-    {
+    let mut ids: Vec<i64> = retained_ids;
+    if !locked {
         let mut insert = tx.prepare(
-            "INSERT INTO document_sections (document_id, parent_id, ordinal, level, title, page_start, page_end, char_count, source)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+            "INSERT INTO document_sections (document_id, parent_id, ordinal, level, title, page_start, page_end, char_count, source, block_start, block_end)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
         )?;
         for (ordinal, section) in structure.sections.iter().enumerate() {
             insert.execute(params![
@@ -330,29 +378,32 @@ pub fn store(tx: &Transaction, document_id: i64, title: &str, extraction: &Extra
                 section.page_start,
                 section.page_end,
                 section.char_count as i64,
-                section.source
+                section.source,
+                section.block_start as i64,
+                section.block_end as i64
             ])?;
             ids.push(tx.last_insert_rowid());
         }
     }
 
-    if !old.is_empty() {
+    if !locked && !old.is_empty() {
         let mut by_key: HashMap<String, Vec<i64>> = HashMap::new();
         for (index, section) in structure.sections.iter().enumerate() {
             by_key.entry(section_key(section.level as i64, &section.title)).or_default().push(ids[index]);
         }
         let mut used: HashMap<String, usize> = HashMap::new();
         let mut remapped: HashMap<i64, i64> = HashMap::new();
-        for (old_id, level, title, page_start) in &old {
+        for (old_id, level, title, page_start, block_start) in &old {
             let key = section_key(*level, title);
             let occurrence = used.entry(key.clone()).or_insert(0);
             let target = by_key.get(&key).and_then(|v| v.get(*occurrence)).copied().or_else(|| {
-                // No title match: the deepest new section containing the old start page.
+                // Same-page headings need a block anchor as well as the page.
                 structure
                     .sections
                     .iter()
                     .enumerate()
-                    .filter(|(_, s)| s.page_start <= *page_start && *page_start <= s.page_end)
+                    .filter(|(_, s)| (s.page_start, s.block_start as i64) <= (*page_start, *block_start)
+                        && (*page_start, *block_start) <= (s.page_end, s.block_end as i64))
                     .max_by_key(|(_, s)| s.level)
                     .map(|(i, _)| ids[i])
             });
@@ -388,26 +439,7 @@ pub fn store(tx: &Transaction, document_id: i64, title: &str, extraction: &Extra
             locs.insert(page.number, (page.loc_start, page.loc_end));
         }
     }
-    {
-        let mut insert = tx.prepare(
-            "INSERT INTO document_chunks (document_id, section_id, chunk_index, page_start, page_end, loc_label, content, char_count)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        )?;
-        let mut fts = tx.prepare("INSERT INTO document_chunks_fts (rowid, body) VALUES (?1, ?2)")?;
-        for (index, chunk) in structure.chunks.iter().enumerate() {
-            insert.execute(params![
-                document_id,
-                chunk.section.map(|s| ids[s]),
-                index as i64,
-                chunk.page_start,
-                chunk.page_end,
-                chunk_label(&extraction.loc_kind, &locs, chunk.page_start, chunk.page_end),
-                chunk.text,
-                chunk.text.chars().count() as i64
-            ])?;
-            fts.execute(params![tx.last_insert_rowid(), segment::index_text(&chunk.text)])?;
-        }
-    }
+    write_chunks(tx, document_id, &extraction.loc_kind, &locs, &structure, &ids)?;
     {
         let mut insert = tx.prepare(
             "INSERT INTO document_images (document_id, page_number, ordinal, file_path, width, height, ocr_text)
@@ -433,12 +465,39 @@ pub fn store(tx: &Transaction, document_id: i64, title: &str, extraction: &Extra
     Ok(structure)
 }
 
+pub(super) fn write_chunks(tx: &Transaction, document_id: i64, loc_kind: &str,
+    locs: &HashMap<i64, (i64, i64)>, structure: &Structure, ids: &[i64]) -> rusqlite::Result<()> {
+    let mut insert = tx.prepare(
+        "INSERT INTO document_chunks (document_id, section_id, chunk_index, page_start, page_end, loc_label, content, char_count, unreliable_formula)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+    )?;
+    let mut fts = tx.prepare("INSERT INTO document_chunks_fts (rowid, body) VALUES (?1, ?2)")?;
+    for (index, chunk) in structure.chunks.iter().enumerate() {
+        insert.execute(params![
+            document_id,
+            chunk.section.map(|s| ids[s]),
+            index as i64,
+            chunk.page_start,
+            chunk.page_end,
+            chunk_label(loc_kind, locs, chunk.page_start, chunk.page_end),
+            chunk.text,
+            chunk.text.chars().count() as i64,
+            chunk.unreliable_formula
+        ])?;
+        fts.execute(params![tx.last_insert_rowid(), segment::index_text(&chunk.text)])?;
+    }
+    for (section, id) in structure.sections.iter().zip(ids) {
+        tx.execute("UPDATE document_sections SET char_count=?1 WHERE id=?2", params![section.char_count as i64, id])?;
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn block(text: &str, heading: Option<u8>) -> ParsedBlock {
-        ParsedBlock { text: text.into(), heading, kind: "text".into() }
+        ParsedBlock { text: text.into(), heading, kind: "text".into(), ..Default::default() }
     }
 
     fn page(number: i64, blocks: Vec<ParsedBlock>) -> ParsedPage {
@@ -465,27 +524,26 @@ mod tests {
     }
 
     #[test]
-    fn no_headings_fall_back_to_root_and_page_groups() {
+    fn no_headings_do_not_invent_ten_page_chapters() {
         let pages: Vec<_> = (1..=35).map(|n| page(n, vec![block(&format!("第{n}页正文"), None)])).collect();
         let s = build(&pages, "page", "扫描教材");
         assert_eq!(s.sections[0].title, "扫描教材");
-        assert_eq!(s.sections[1].title, "第 1–10 页");
-        assert_eq!(s.sections.last().unwrap().title, "第 31–35 页");
-        assert!(s.sections[1..].iter().all(|x| x.parent == Some(0)));
+        assert_eq!(s.sections.len(), 1);
+        assert_eq!((s.sections[0].page_start, s.sections[0].page_end), (1, 35));
         let short = build(&[page(1, vec![block("正文", None)])], "page", "短文");
         assert_eq!(short.sections.len(), 1);
         assert_eq!(short.chunks[0].section, Some(0));
     }
 
     #[test]
-    fn slides_hang_under_deck_root_and_levels_are_promoted_elsewhere() {
+    fn missing_parent_uses_root_without_promoting_real_levels() {
         let slides = vec![page(1, vec![block("随机事件", Some(2)), block("定义", None)]), page(2, vec![block("概率", Some(2))])];
         let s = build(&slides, "slide", "第一讲");
         assert_eq!(s.sections[0].title, "第一讲");
         assert_eq!(s.sections[1].parent, Some(0));
         let doc = vec![page(1, vec![block("背景", Some(2)), block("内容", None)])];
         let d = build(&doc, "paragraph", "笔记");
-        assert_eq!((d.sections[0].level, d.sections[0].title.as_str()), (1, "背景"));
+        assert_eq!((d.sections[1].level, d.sections[1].title.as_str()), (2, "背景"));
     }
 
     #[test]
@@ -496,6 +554,37 @@ mod tests {
         assert!(s.chunks.iter().all(|c| c.text.chars().count() <= MAX_CHUNK));
         let small: Vec<_> = (0..5).map(|i| block(&format!("短句{i}"), None)).collect();
         assert_eq!(build(&[page(1, small)], "page", "短").chunks.len(), 1);
+    }
+
+    #[test]
+    fn same_page_sections_have_disjoint_block_boundaries() {
+        let s = build(&[page(1, vec![block("第一章", Some(1)), block("甲", None),
+            block("第二章", Some(1)), block("乙", None)])], "page", "教材");
+        assert_eq!((s.sections[0].block_start, s.sections[0].block_end), (0, 1));
+        assert_eq!((s.sections[1].block_start, s.sections[1].block_end), (2, 3));
+        assert_eq!(s.chunks[0].text, "第一章\n甲");
+        assert_eq!(s.chunks[1].text, "第二章\n乙");
+    }
+
+    #[test]
+    fn blank_pages_before_next_heading_belong_to_the_previous_section() {
+        let s = build(&[page(1, vec![block("第一章", Some(1))]), page(2, vec![]),
+            page(3, vec![block("第二章", Some(1))])], "page", "教材");
+        assert_eq!(s.sections[0].page_end, 2);
+        assert_eq!(s.sections[1].page_start, 3);
+    }
+
+    #[test]
+    fn long_formula_keeps_all_symbols_and_carries_recognition_warning() {
+        let formula = "𝑥² + ∫₀¹ f(x) dx ≠ α\n".repeat(100);
+        let mut math = block(&formula, None);
+        math.formula = true;
+        math.recognition = "unverified".into();
+        let s = build(&[page(1, vec![block("前文", None), math, block("后文", None)])], "page", "教材");
+        assert_eq!(s.chunks.len(), 3);
+        assert_eq!(s.chunks[1].text, formula);
+        assert!(s.chunks[1].unreliable_formula);
+        assert!(!s.chunks[0].unreliable_formula && !s.chunks[2].unreliable_formula);
     }
 
     #[test]

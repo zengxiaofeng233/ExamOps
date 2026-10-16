@@ -90,7 +90,7 @@ pub struct BuiltContext {
 const HEADER_TOKENS: usize = 24;
 
 fn chunk_tokens(chunk: &ChunkHit) -> usize {
-    tokens::estimate(&chunk.content) + HEADER_TOKENS
+    tokens::estimate(&chunk.content) + HEADER_TOKENS + if chunk.unreliable_formula { 80 } else { 0 }
 }
 
 /// Escapes fence markers so material cannot close its own fence.
@@ -114,8 +114,11 @@ pub fn render(chunks: &[ChunkHit], first_label: usize) -> (String, Vec<SourceRef
     for (offset, chunk) in chunks.iter().enumerate() {
         let label = format!("S{}", first_label + offset);
         let section = chunk.section_title.as_deref().map(|s| format!(" · {}", neutralize(s))).unwrap_or_default();
+        let warning = if chunk.unreliable_formula {
+            "【识别警告：此片段含未经核验的公式或可疑字符；请对照原页面，不得将其作为已确认的公式依据。】\n"
+        } else { "" };
         text.push_str(&format!(
-            "<<<资料 {label} | {}{section} · {}>>>\n{}\n<<<{label} 结束>>>\n\n",
+            "<<<资料 {label} | {}{section} · {}>>>\n{warning}{}\n<<<{label} 结束>>>\n\n",
             neutralize(&chunk.filename),
             chunk.loc_label,
             neutralize(chunk.content.trim())
@@ -143,7 +146,7 @@ pub fn scope_chunks(conn: &Connection, course_id: i64, scope: &ConversationScope
     let filter = search::scope_sql(&scope.to_search(), &mut args);
     let sql = format!(
         "SELECT c.id, c.document_id, d.filename, c.section_id, s.title, c.chunk_index, c.page_start, c.page_end,
-                c.loc_label, c.content
+                c.loc_label, c.content, c.unreliable_formula
          FROM document_chunks c
          JOIN documents d ON d.id = c.document_id
          LEFT JOIN document_sections s ON s.id = c.section_id
@@ -164,6 +167,7 @@ pub fn scope_chunks(conn: &Connection, course_id: i64, scope: &ConversationScope
             loc_label: r.get(8)?,
             content: r.get(9)?,
             score: 0.0,
+            unreliable_formula: r.get(10)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)

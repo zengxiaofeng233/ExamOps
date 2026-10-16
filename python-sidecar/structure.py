@@ -6,8 +6,22 @@ as a heading (1 = chapter, 2 = section, ...). The desktop app builds chapters,
 retrieval chunks and citations from this structure, so every block keeps the
 unit (page / slide / paragraph / line range) it came from.
 """
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 from typing import Optional
+import re
+import unicodedata
+
+
+def unicode_issues(text):
+    """Report suspect mappings, never rewrite mathematical Unicode or PUA glyphs."""
+    return sorted({f"U+{ord(c):04X}" for c in text if c == '\ufffd'
+                   or unicodedata.category(c) in ('Co', 'Cs', 'Cn')
+                   or (unicodedata.category(c) == 'Cc' and c not in '\n\r\t')})
+
+
+def formula_like(text):
+    return (any(unicodedata.category(c) == 'Sm' for c in text)
+            or bool(re.search(r'\$|\\\(|\\\[|[⁰¹²³⁴⁵⁶⁷⁸⁹₀₁₂₃₄₅₆₇₈₉]|[∫∑∏√∞]', text)))
 
 
 @dataclass
@@ -19,6 +33,22 @@ class Block:
     # Approximate font size (PDF line height in points) used by layout heuristics.
     size: Optional[float] = None
     source: Optional[str] = None
+    raw_text: Optional[str] = None
+    # PDF canvas points: left, bottom, right, top (same space as PDFium).
+    bbox: Optional[list] = None
+    recognition: str = "native"
+    issues: list = field(default_factory=list)
+    formula: bool = False
+
+    def __post_init__(self):
+        if self.raw_text is None:
+            self.raw_text = self.text
+        self.issues = unicode_issues(self.raw_text)
+        self.formula = self.formula or formula_like(self.text)
+        if self.issues:
+            self.recognition = "suspect"
+        elif self.kind == "ocr":
+            self.recognition = "unverified"
 
 
 @dataclass
@@ -48,7 +78,7 @@ class Unit:
             "loc_start": self.loc_start or self.number,
             "loc_end": self.loc_end or self.number,
             "blocks": [
-                {"text": b.text, "heading": b.heading, "kind": b.kind}
+                asdict(b)
                 for b in self.blocks if b.text
             ],
         }

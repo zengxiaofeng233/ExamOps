@@ -8,13 +8,14 @@ import unittest
 
 from PIL import Image, ImageDraw
 from PyPDF2 import PdfWriter
-from PyPDF2.generic import DictionaryObject, NameObject, NumberObject, DecodedStreamObject
+from PyPDF2.generic import DictionaryObject, NameObject, NumberObject, DecodedStreamObject, ArrayObject, TextStringObject
 from docx import Document
 from pptx import Presentation
 from pptx.util import Inches
 
 import chapters
-from parser import DocumentError, Ocr, parse_structured
+from parser import DocumentError, Ocr, parse_structured, merge_lines, same_text
+from structure import Block, Unit, unicode_issues
 from render import render_pages
 
 MAIN = str(Path(__file__).with_name("main.py"))
@@ -32,7 +33,8 @@ def make_text_pdf(path, pages, outline=(), image=None, encrypt=None):
         resources = DictionaryObject({NameObject('/Font'): DictionaryObject({NameObject('/F1'): writer._add_object(font)})})
         commands, y = b'', 760
         for text, size in lines:
-            commands += f'BT /F1 {size} Tf 40 {y} Td ({text}) Tj ET\n'.encode('ascii')
+            line_y = 30 if text.isdigit() else y  # page-number fixtures belong in the footer
+            commands += f'BT /F1 {size} Tf 40 {line_y} Td ({text}) Tj ET\n'.encode('ascii')
             y -= size + 14
         if image is not None:
             stream = DecodedStreamObject()
@@ -90,6 +92,90 @@ class ChineseNumberTests(unittest.TestCase):
         self.assertIsNone(chapters.chinese_number('abc'))
 
 
+class FidelityTests(unittest.TestCase):
+    def test_scanned_headings_accept_compact_and_fullwidth_numbering(self):
+        units = [Unit(1, '1', [Block('第一章函数与极限', kind='ocr'),
+                              Block('１．１ 映射', kind='ocr')]),
+                 Unit(2, '2', [Block('第二章导数', kind='ocr')])]
+        self.assertEqual(chapters.detect(units, 'pdf'), 'patterns')
+        self.assertEqual([b.heading for u in units for b in u.blocks], [1, 2, 1])
+        self.assertEqual(units[0].blocks[1].text, '１．１ 映射')
+
+    def test_math_characters_are_not_deduplicated_or_normalized(self):
+        for a, b in [('x+y', 'x−y'), ('x²', 'x2'), ('A', 'a'), ('ℝ', 'R'), ('x=y', 'xy')]:
+            self.assertFalse(same_text(a, b))
+        self.assertTrue(same_text('x + y', 'x+y'))
+        self.assertFalse(same_text('\ue000', '\ue000'))
+        math = '𝑥² + ∫₀¹ f(x) dx ≠ ∑ αᵢ ∈ ℝ'
+        self.assertEqual(unicode_issues(math), [])
+        self.assertEqual(unicode_issues('x\ue000\ufffd'), ['U+E000', 'U+FFFD'])
+
+    def test_formula_and_suspect_blocks_survive_paragraph_merging(self):
+        formula = 'a + b + c + d + e + f = 𝑥²'
+        unit = Unit(1, '1', [Block('A sufficiently long introductory sentence'),
+                            Block(formula), Block('following explanation without punctuation')])
+        merge_lines(unit)
+        self.assertEqual(len(unit.blocks), 3)
+        data = unit.to_json()['blocks'][1]
+        self.assertEqual(data['text'], formula)
+        self.assertEqual(data['raw_text'], formula)
+        self.assertTrue(data['formula'])
+
+    def test_outline_matches_ocr_without_duplicate_synthetic_heading(self):
+        units = [Unit(1, '1', [Block('Chapter 1 Limits', kind='ocr')]),
+                 Unit(2, '2', [Block('Chapter 2 Derivatives', kind='ocr')])]
+        chapters.detect(units, 'pdf', [(0, 'Chapter 1 Limits', 0), (0, 'Chapter 2 Derivatives', 1)])
+        self.assertEqual([len(u.blocks) for u in units], [1, 1])
+        self.assertTrue(all(u.blocks[0].heading == 1 for u in units))
+
+    def test_bookmark_chapters_and_ocr_subsections_are_combined(self):
+        units = [Unit(1, '1', [Block('第一章函数', kind='ocr'), Block('第一节映射', kind='ocr')])]
+        self.assertEqual(chapters.detect(units, 'pdf', [(0, '第一章函数', 0)]), 'mixed')
+        self.assertEqual([b.heading for b in units[0].blocks], [1, 2])
+
+    def test_pattern_subsection_respects_bookmark_part_level(self):
+        units = [Unit(1, '1', [Block('Chapter 1 Functions'), Block('1.1 Domain', kind='ocr')])]
+        chapters.detect(units, 'pdf', [(0, 'Part A', 0), (1, 'Chapter 1 Functions', 0)])
+        self.assertEqual([b.heading for b in units[0].blocks], [1, 2, 3])
+
+    def test_a_single_real_section_keeps_its_level(self):
+        units = [Unit(1, '1', [Block('1.1 映射', kind='ocr')])]
+        self.assertEqual(chapters.detect(units, 'pdf'), 'patterns')
+        self.assertEqual(units[0].blocks[0].heading, 2)
+
+    def test_repeated_header_does_not_remove_the_printed_chapter_title(self):
+        units = [Unit(n, str(n), [Block('第一章函数', kind='ocr', bbox=[20, 760, 200, 780]),
+                 Block('第一章函数' if n == 1 else '正文内容', kind='ocr', bbox=[40, 600, 400, 640])],
+                 width=600, height=800) for n in range(1, 6)]
+        chapters.detect(units, 'pdf')
+        self.assertEqual(units[0].blocks[0].text, '第一章函数')
+        self.assertEqual(units[0].blocks[0].heading, 1)
+        self.assertEqual(len(units[0].blocks), 1)
+
+    def test_repeated_numeric_formula_fragment_is_not_a_page_number(self):
+        units = [Unit(n, str(n), [Block('1', kind='ocr', bbox=[200, 30, 210, 40])],
+                      width=600, height=800) for n in range(1, 6)]
+        chapters.strip_furniture(units)
+        self.assertEqual([u.text for u in units], ['1'] * 5)
+
+    def test_ocr_contents_with_separate_page_number_column_are_not_chapters(self):
+        toc = Unit(1, '目录', [])
+        for i in range(1, 6):
+            y = 700 - i * 30
+            toc.blocks.extend([Block(f'第{i}章 标题', kind='ocr', bbox=[40, y, 300, y+15]),
+                               Block(str(i*10), kind='ocr', bbox=[500, y, 530, y+15])])
+        body = Unit(2, '正文', [Block('第1章 标题', kind='ocr'), Block('正文内容')])
+        chapters.detect([toc, body], 'pdf')
+        self.assertTrue(all(b.heading is None for b in toc.blocks))
+        self.assertEqual(body.blocks[0].heading, 1)
+
+    def test_repeated_subsection_names_in_different_chapters_are_kept(self):
+        units = [Unit(1, '1', [Block('第一章 函数'), Block('第一节 概述')]),
+                 Unit(2, '2', [Block('第二章 导数'), Block('第一节 概述')])]
+        chapters.detect(units, 'pdf')
+        self.assertEqual([b.heading for u in units for b in u.blocks], [1, 2, 1, 2])
+
+
 class StructureTests(NoOcr):
     @classmethod
     def setUpClass(cls):
@@ -99,6 +185,36 @@ class StructureTests(NoOcr):
     @classmethod
     def tearDownClass(cls):
         cls.directory.cleanup()
+
+    def test_pdf_unicode_math_including_non_bmp_is_preserved(self):
+        D, N, S = DictionaryObject, NameObject, TextStringObject
+        writer = PdfWriter()
+        writer.add_blank_page(600, 800)
+        page = writer.pages[-1]
+        text = '𝑥²+∫₀¹f(x)dx≠α∈ℝ'
+        cmap = DecodedStreamObject()
+        mapping = '\n'.join(f'<{i:04X}> <{c.encode("utf-16-be").hex()}>' for i, c in enumerate(text, 1))
+        cmap.set_data(('begincmap\n/CMapType 2 def\n1 begincodespacerange\n<0000> <FFFF>\nendcodespacerange\n'
+                       + str(len(text)) + ' beginbfchar\n' + mapping + '\nendbfchar\nendcmap').encode())
+        cid = D({N('/Type'): N('/Font'), N('/Subtype'): N('/CIDFontType2'), N('/BaseFont'): N('/Arial'),
+                 N('/CIDSystemInfo'): D({N('/Registry'): S('Adobe'), N('/Ordering'): S('Identity'),
+                                         N('/Supplement'): NumberObject(0)}), N('/DW'): NumberObject(600)})
+        font = D({N('/Type'): N('/Font'), N('/Subtype'): N('/Type0'), N('/BaseFont'): N('/Arial'),
+                  N('/Encoding'): N('/Identity-H'), N('/DescendantFonts'): ArrayObject([writer._add_object(cid)]),
+                  N('/ToUnicode'): writer._add_object(cmap)})
+        page[N('/Resources')] = D({N('/Font'): D({N('/F1'): writer._add_object(font)})})
+        stream = DecodedStreamObject()
+        stream.set_data(('BT /F1 16 Tf 40 700 Td <' + ''.join(f'{i:04X}' for i in range(1, len(text)+1)) + '> Tj ET').encode())
+        page[N('/Contents')] = writer._add_object(stream)
+        path = self.folder / 'unicode-math.pdf'
+        with path.open('wb') as file:
+            writer.write(file)
+        block = parse_structured(path)['pages'][0]['blocks'][0]
+        self.assertEqual(block['text'], text)
+        self.assertEqual(block['raw_text'], text)
+        self.assertEqual(block['issues'], [])
+        self.assertTrue(block['formula'])
+        self.assertIsNotNone(block['bbox'])
 
     def test_pdf_outline_marks_headings_and_inserts_missing_titles(self):
         path = self.folder / 'outline.pdf'

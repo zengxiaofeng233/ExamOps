@@ -137,6 +137,19 @@ pub fn get_document_sections(app_handle: AppHandle, document_id: i64) -> AppResu
     documents::sections(&conn, document_id)
 }
 
+/// 手动调整章节；保留原文及已有引用，和重新解析互斥。
+#[tauri::command]
+pub async fn edit_document_section(
+    paths: State<'_, AppPaths>, tasks: State<'_, DocumentTasks>,
+    document_id: i64, section_id: i64, edit: documents::edit::SectionEdit,
+) -> AppResult<Vec<Section>> {
+    let _guard = tasks.0.lock().await;
+    let paths = paths.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        documents::edit::apply(&mut paths.connect()?, document_id, section_id, edit)
+    }).await?
+}
+
 /// 课程全部资料的章节（用于章节选择）。
 #[tauri::command]
 pub fn get_course_sections(app_handle: AppHandle, course_id: i64) -> AppResult<Vec<CourseSection>> {

@@ -5,13 +5,25 @@ use serde::{Deserialize, Serialize};
 use std::path::Path;
 use tokio::io::{AsyncBufReadExt, AsyncReadExt, BufReader};
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct ParsedBlock {
     pub text: String,
     #[serde(default)]
     pub heading: Option<u8>,
     #[serde(default)]
     pub kind: String,
+    #[serde(default)]
+    pub raw_text: Option<String>,
+    #[serde(default)]
+    pub bbox: Option<[f64; 4]>,
+    #[serde(default)]
+    pub source: Option<String>,
+    #[serde(default)]
+    pub recognition: String,
+    #[serde(default)]
+    pub issues: Vec<String>,
+    #[serde(default)]
+    pub formula: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -103,7 +115,7 @@ pub fn pages_from_plain_text(content: &str, file_type: &str) -> Vec<ParsedPage> 
     let blocks_of = |text: &str| -> Vec<ParsedBlock> {
         text.lines()
             .filter(|l| !l.trim().is_empty())
-            .map(|l| ParsedBlock { text: l.trim().to_string(), heading: None, kind: "text".into() })
+            .map(|l| ParsedBlock { text: l.trim().to_string(), heading: None, kind: "text".into(), ..Default::default() })
             .collect()
     };
     match file_type {
@@ -143,7 +155,7 @@ pub fn pages_from_plain_text(content: &str, file_type: &str) -> Vec<ParsedPage> 
                         let (a, b) = (start as i64 + 1, (start + buffer.len()) as i64);
                         let label = if a == b { format!("第 {a} 行") } else { format!("第 {a}–{b} 行") };
                         pages.push(page(n, label, a, b, vec![ParsedBlock {
-                            text: buffer.join("\n"), heading: None, kind: "text".into(),
+                            text: buffer.join("\n"), heading: None, kind: "text".into(), ..Default::default()
                         }]));
                         buffer.clear();
                     }
@@ -159,7 +171,7 @@ pub fn pages_from_plain_text(content: &str, file_type: &str) -> Vec<ParsedPage> 
                 let n = pages.len() as i64 + 1;
                 let (a, b) = (start as i64 + 1, (start + buffer.len()) as i64);
                 let label = if a == b { format!("第 {a} 行") } else { format!("第 {a}–{b} 行") };
-                pages.push(page(n, label, a, b, vec![ParsedBlock { text: buffer.join("\n"), heading: None, kind: "text".into() }]));
+                pages.push(page(n, label, a, b, vec![ParsedBlock { text: buffer.join("\n"), heading: None, kind: "text".into(), ..Default::default() }]));
             }
         }
     }
@@ -307,6 +319,18 @@ mod tests {
         let pages = pages_from_plain_text("一\n二\n\n三", "txt");
         assert_eq!(pages.iter().map(|p| p.label.as_str()).collect::<Vec<_>>(), vec!["第 1–2 行", "第 4 行"]);
         assert_eq!((pages[1].loc_start, pages[1].loc_end), (4, 4));
+    }
+
+    #[test]
+    fn analysis_fields_survive_protocol_round_trip() {
+        let json = r#"{"text":"𝑥²≠α","kind":"ocr","raw_text":"𝑥²≠α","bbox":[1,2,30,40],"source":"patterns","recognition":"suspect","issues":["U+E000"],"formula":true}"#;
+        let block: ParsedBlock = serde_json::from_str(json).unwrap();
+        assert_eq!(block.raw_text.as_deref(), Some("𝑥²≠α"));
+        assert_eq!(block.bbox, Some([1., 2., 30., 40.]));
+        assert!(block.formula);
+        assert_eq!(serde_json::from_str::<ParsedBlock>(&serde_json::to_string(&block).unwrap()).unwrap(), block);
+        let legacy: ParsedBlock = serde_json::from_str(r#"{"text":"旧正文"}"#).unwrap();
+        assert!(legacy.bbox.is_none() && legacy.issues.is_empty());
     }
 
     #[test]

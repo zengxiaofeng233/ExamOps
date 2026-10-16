@@ -691,6 +691,7 @@ mod tests {
         let chunk = |n: usize| ChunkHit {
             chunk_id: n as i64, document_id: 1, filename: "a".into(), section_id: Some(1), section_title: None, chunk_index: n as i64,
             page_start: 1, page_end: 1, loc_label: "第 1 页".into(), content: "字".repeat(if n == 2 { 2000 } else { 600 }), score: 0.0,
+            unreliable_formula: false,
         };
         let chunks: Vec<_> = (0..5).map(chunk).collect();
         // 600+600 | 2000 (oversized alone) | 600+600

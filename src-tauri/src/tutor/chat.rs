@@ -438,6 +438,7 @@ mod tests {
         let chunk = |id: i64, text: &str| crate::search::ChunkHit {
             chunk_id: id, document_id: 1, filename: "讲义.pdf".into(), section_id: None, section_title: None, chunk_index: id,
             page_start: id, page_end: id, loc_label: format!("第 {id} 页"), content: text.into(), score: 0.0,
+            unreliable_formula: false,
         };
         let (text, sources) = context::render(&[chunk(10, "甲"), chunk(11, "乙")], 1);
         let primary = BuiltContext { mode_used: "lesson".into(), text, sources, ..Default::default() };

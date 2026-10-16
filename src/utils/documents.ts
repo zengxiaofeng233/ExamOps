@@ -23,7 +23,9 @@ export const STRUCTURE_LABELS: Record<string, string> = {
   slides: '按幻灯片标题识别章节',
   patterns: '按编号格式（如“第三章”“3.2”）识别章节',
   layout: '按字号版式识别章节',
-  none: '未识别到章节，按页码分组',
+  mixed: '合并书签与正文标题识别章节',
+  topic: '无标题资料：按词汇主题生成学习单元（可调整）',
+  none: '未识别到章节，保留完整正文',
   legacy: '旧版本导入，重新解析后可识别章节和图片',
   '': '尚未解析'
 }

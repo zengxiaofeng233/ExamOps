@@ -7,16 +7,19 @@ Sources, from most to least trustworthy:
   4. PPT sections, section-header layouts, slide titles -> "slides"
   5. Numbering patterns such as 第三章 / 3.2 / 一、 -> "patterns"
   6. PDF font-size layout                        -> "layout"
-The first source that yields a usable structure wins; the app falls back to
-page ranges when nothing is found ("none").
+Bookmarks and numbering patterns are combined; layout is a last resort.
+No heading is invented when nothing is found ("none").
 
 Design idea (labelled structure, data-not-instructions) inspired by the MIT
 licensed Universal ExamPrep Skill by ZeKaiNie; the implementation is original.
 """
 import re
+import unicodedata
 from collections import Counter
+from dataclasses import replace
 
 from structure import Block
+import topics
 
 CN_DIGITS = {"零": 0, "〇": 0, "一": 1, "二": 2, "两": 2, "三": 3, "四": 4, "五": 5,
              "六": 6, "七": 7, "八": 8, "九": 9}
@@ -24,12 +27,11 @@ CN_UNITS = {"十": 10, "百": 100, "千": 1000}
 NUM = r"[0-9０-９零〇一二三四五六七八九十百千两]+"
 ROMAN = r"[ivxlcIVXLC]+"
 
-# (rank, regex). Rank orders numbering families; levels are compressed later so
-# the highest family present becomes level 1.
+# (rank, regex). Preserve numbering depth; bookmark anchors can add a part level.
 PATTERNS = [
-    (1, re.compile(rf"^第\s*({NUM})\s*[章篇编讲](?=$|[\s:：、.．\-—])")),
+    (1, re.compile(rf"^第\s*({NUM})\s*[章篇编讲]")),
     (1, re.compile(rf"^(?:chapter|chap\.|lecture|unit|part|module)\s+(\d+|{ROMAN})\b", re.I)),
-    (2, re.compile(rf"^第\s*({NUM})\s*节(?=$|[\s:：、.．\-—])")),
+    (2, re.compile(rf"^第\s*({NUM})\s*节")),
     (2, re.compile(r"^(?:section|§)\s*(\d+(?:\.\d+)?)", re.I)),
     (2, re.compile(r"^(\d{1,2})[.．](\d{1,2})(?![.．\d])\s*(?=[一-鿿A-Za-z（(《“\"])")),
     (3, re.compile(r"^(\d{1,2})[.．](\d{1,2})[.．](\d{1,2})(?![.．\d])\s*(?=[一-鿿A-Za-z（(《“\"])")),
@@ -45,7 +47,12 @@ CONTINUED = re.compile(r"\s*[（(]?(?:续|續|cont\.?|continued)[)）]?\s*$|\s*\
 
 
 def normalized(text):
-    return re.sub(r"\W+", "", text, flags=re.UNICODE).casefold()
+    return re.sub(r"\W+", "", heading_text(text), flags=re.UNICODE).casefold()
+
+
+def heading_text(text):
+    # Comparison only: never apply NFKC to stored mathematical source text.
+    return unicodedata.normalize('NFKC', text).strip()
 
 
 def chinese_number(text):
@@ -75,7 +82,7 @@ def chinese_number(text):
 
 def looks_like_heading(line):
     """Quick check used by the text parser to split a heading line from its paragraph."""
-    text = line.strip()
+    text = heading_text(line)
     return heading_like(text) and any(pattern.match(text) for _, pattern in PATTERNS)
 
 
@@ -91,21 +98,41 @@ def strip_furniture(units):
     """Removes running headers/footers and bare page numbers repeated across pages."""
     if len(units) < 4:
         return
-    edge_keys = Counter()
+    def edge_blocks(unit):
+        texts = [b for b in unit.blocks if b.kind in ("text", "ocr") and not b.formula and not b.issues]
+        if unit.meta.get('rotation', 0):
+            return []  # do not infer horizontal margins from rotated canvas boxes
+        if unit.height and any(b.bbox for b in texts):
+            bottom, top = (unit.meta['canvas'][1], unit.meta['canvas'][3]) if 'canvas' in unit.meta else (0, unit.height)
+            height = top - bottom
+            return [b for b in texts if b.bbox and
+                    (b.bbox[1] >= top - height * .10 or b.bbox[3] <= bottom + height * .10)]
+        return texts[:2] + texts[-2:]
+    edge_keys, page_offsets = Counter(), Counter()
     for unit in units:
-        texts = [b for b in unit.blocks if b.kind == "text"]
-        for block in texts[:2] + texts[-2:]:
-            edge_keys[re.sub(r"\d+", "#", normalized(block.text))] += 1
-    threshold = max(4, int(len(units) * 0.3))
+        for key in {normalized(b.text) for b in edge_blocks(unit)}:
+            edge_keys[key] += 1
+        for offset in {unit.number - int(b.text.strip()) for b in edge_blocks(unit)
+                       if re.fullmatch(r'\d{1,4}', b.text.strip())}:
+            page_offsets[offset] += 1
+    # Chapter-specific headers repeat over only a small part of a long textbook.
+    # Geometry limits deletion to the margin, so a whole-book majority is wrong.
+    threshold = 3 if any(u.height for u in units) else max(4, int(len(units) * 0.3))
     repeated = {key for key, count in edge_keys.items() if key and count >= threshold}
+    numbered = {offset for offset, count in page_offsets.items() if count >= 3}
     page_number = re.compile(r"^(?:[-—–\s]*\d{1,4}[-—–\s]*|第\s*\d+\s*页(?:\s*共\s*\d+\s*页)?|page\s*\d+(?:\s*of\s*\d+)?|\d+\s*/\s*\d+)$", re.I)
     for unit in units:
-        texts = [b for b in unit.blocks if b.kind == "text"]
-        edges = {id(b) for b in texts[:2] + texts[-2:]}
+        edges = {id(b) for b in edge_blocks(unit)}
+        def furniture(block):
+            text = block.text.strip()
+            if re.fullmatch(r'\d{1,4}', text):
+                # A repeated bare constant can be part of a formula. Page numbers
+                # must advance with the PDF page number (allow front-matter offsets).
+                return unit.number - int(text) in numbered
+            return normalized(text) in repeated or page_number.match(text)
         unit.blocks = [
             b for b in unit.blocks
-            if id(b) not in edges or not (
-                re.sub(r"\d+", "#", normalized(b.text)) in repeated or page_number.match(b.text.strip()))
+            if id(b) not in edges or not furniture(b)
         ]
 
 
@@ -127,7 +154,7 @@ def apply_outline(units, toc):
             key = normalized(title)
             match = None
             for block in unit.blocks:
-                if block.heading is not None or block.kind == "ocr":
+                if block.heading is not None:
                     continue
                 text_key = normalized(block.text)
                 if text_key and (text_key == key or (len(key) >= 2 and key in text_key and len(text_key) <= len(key) * 2 + 8)
@@ -148,19 +175,53 @@ def apply_outline(units, toc):
 
 def _is_toc_page(unit):
     hits = sum(1 for b in unit.blocks if TOC_LINE.search(b.text.strip()))
-    return hits >= 4 or (hits >= 2 and any(normalized(b.text) in ("目录", "目次", "contents", "tableofcontents") for b in unit.blocks))
+    if hits >= 4 or (hits >= 2 and any(normalized(b.text) in ("目录", "目次", "contents", "tableofcontents") for b in unit.blocks)):
+        return True
+    # Scanned contents often have a separately detected page-number column.
+    titles = [b for b in unit.blocks if looks_like_heading(b.text)]
+    numbers = [b for b in unit.blocks if re.fullmatch(r'\d{1,4}', b.text.strip())]
+    pairs = 0
+    for title in titles:
+        if not title.bbox:
+            continue
+        l, bottom, r, top = title.bbox
+        if any(n.bbox and n.bbox[0] >= r - 5 and
+               abs((n.bbox[1] + n.bbox[3]) / 2 - (bottom + top) / 2) <= max(top - bottom, 5)
+               for n in numbers):
+            pairs += 1
+    return pairs >= 4 or (not any(b.bbox for b in unit.blocks) and len(titles) >= 4 and len(numbers) >= 4)
 
 
-def apply_patterns(units, kinds=("text", "title", "synthetic")):
+def apply_patterns(units, kinds=("text", "ocr", "title", "synthetic")):
     """Numbering-pattern headings with TOC, duplicate and monotonic filtering."""
     candidates = []  # (unit, block, rank, number_tuple)
+    anchors = set()
+    for unit in units:
+        for block in unit.blocks:
+            if block.heading is not None:
+                for rank, pattern in PATTERNS:
+                    if pattern.match(heading_text(block.text)):
+                        anchors.add(block.heading - rank)
+                        break
+    # Honour a consistent bookmark hierarchy (e.g. parts above chapters).
+    offset = next(iter(anchors)) if len(anchors) == 1 else 0
     for unit in units:
         if _is_toc_page(unit):
             continue
         for block in unit.blocks:
-            if block.kind not in kinds or block.heading is not None:
+            if block.heading is not None:
+                rank = max(1, block.heading - offset)
+                numbers = ()
+                for _, pattern in PATTERNS:
+                    match = pattern.match(heading_text(block.text))
+                    if match:
+                        numbers = tuple(chinese_number(g) for g in match.groups() if g)
+                        break
+                candidates.append((unit, block, rank, numbers))
                 continue
-            text = block.text.strip()
+            if block.kind not in kinds or block.issues:
+                continue
+            text = heading_text(block.text)
             if not heading_like(text):
                 continue
             for rank, pattern in PATTERNS:
@@ -181,21 +242,31 @@ def apply_patterns(units, kinds=("text", "title", "synthetic")):
 
     # Drop repeats (running headers) and numbers going backwards within a family.
     seen_text, last_number, kept = set(), {}, []
+    chapter = None
+    parents = {}
     for unit, block, rank, numbers in candidates:
-        key = (rank, normalized(block.text))
+        scope = tuple(parents.get(level) for level in range(1, rank))
+        family = (scope, rank, len(numbers))
+        if numbers and all(n is not None for n in numbers):
+            if numbers <= last_number.get(family, ()) and block.heading is None:
+                continue
+            last_number[family] = numbers
+        parents[rank] = normalized(block.text)
+        for level in list(parents):
+            if level > rank:
+                del parents[level]
+        if rank == 1:
+            chapter = normalized(block.text)
+        key = (chapter if rank > 1 else None, rank, normalized(block.text))
         if key in seen_text:
             continue
         seen_text.add(key)
-        if rank == 1 and numbers and numbers[0] is not None:
-            if numbers[0] < last_number.get(1, 0):
-                continue
-            last_number[1] = numbers[0]
-        kept.append((block, rank))
+        if block.heading is None:
+            kept.append((block, rank))
     if not kept:
         return 0
-    levels = {rank: index + 1 for index, rank in enumerate(sorted({rank for _, rank in kept}))}
     for block, rank in kept:
-        block.heading, block.source = levels[rank], "patterns"
+        block.heading, block.source = min(6, max(1, rank + offset)), "patterns"
     return len(kept)
 
 
@@ -265,20 +336,44 @@ def clear(units, source):
         unit.blocks = [b for b in unit.blocks if not (b.kind == "synthetic" and b.source == source)]
 
 
+def join_heading_fragments(units):
+    """Join a split chapter number/title on the same physical line only."""
+    for unit in units:
+        for block in list(unit.blocks):
+            if not block.bbox or not re.fullmatch(rf'第\s*{NUM}\s*[章节篇编讲]', heading_text(block.text)):
+                continue
+            left, bottom, right, top = block.bbox
+            height = top - bottom
+            matches = [b for b in unit.blocks if b is not block and b.bbox
+                       and right - height * .65 <= b.bbox[0] <= right + height
+                       and abs((b.bbox[1] + b.bbox[3] - bottom - top) / 2) < height * .3
+                       and .7 * height <= b.bbox[3] - b.bbox[1] <= 1.4 * height
+                       and heading_like(b.text) and not b.formula and not b.issues
+                       and not looks_like_heading(b.text)]
+            if len(matches) == 1:
+                tail = matches[0]
+                joined = replace(block, text=block.text + ' ' + tail.text,
+                                 raw_text=(block.raw_text or block.text) + ' ' + (tail.raw_text or tail.text),
+                                 bbox=[left, min(bottom, tail.bbox[1]), tail.bbox[2], max(top, tail.bbox[3])])
+                position = min(unit.blocks.index(block), unit.blocks.index(tail))
+                unit.blocks.remove(block)
+                unit.blocks.remove(tail)
+                unit.blocks.insert(position, joined)
+
+
 def detect(units, kind, toc=None):
     """Marks headings in place and returns the structure source used."""
     if kind == "pdf":
+        join_heading_fragments(units)
         strip_furniture(units)
-        if toc and apply_outline(units, toc) >= 2:
-            return "outline"
-        clear(units, "outline")
-        if apply_patterns(units) >= 2:
-            return "patterns"
-        clear(units, "patterns")
+        outline = apply_outline(units, toc) if toc else 0
+        patterns = apply_patterns(units)
+        if outline or patterns:
+            return "mixed" if outline and patterns else ("outline" if outline else "patterns")
         if apply_layout(units) >= 2:
             return "layout"
         clear(units, "layout")
-        return "none"
+        return "topic" if topics.apply(units) else "none"
     if kind == "pptx":
         has_sections = any(b.kind == "section" for u in units for b in u.blocks)
         found = apply_slides(units, has_sections)

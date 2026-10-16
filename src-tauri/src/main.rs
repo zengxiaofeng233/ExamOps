@@ -100,6 +100,7 @@ fn main() {
             commands::document::reprocess_document,
             commands::document::delete_document,
             commands::document::get_document_sections,
+            commands::document::edit_document_section,
             commands::document::get_course_sections,
             commands::document::get_document_pages,
             commands::document::get_page_preview,

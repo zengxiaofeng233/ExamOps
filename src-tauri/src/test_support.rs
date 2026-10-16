@@ -22,7 +22,7 @@ pub fn cleanup(paths: AppPaths) {
 }
 
 fn block(text: &str, heading: Option<u8>) -> ParsedBlock {
-    ParsedBlock { text: text.into(), heading, kind: "text".into() }
+    ParsedBlock { text: text.into(), heading, kind: "text".into(), ..Default::default() }
 }
 
 /// A three-page calculus excerpt with two chapters and one sub-section.

@@ -5,6 +5,7 @@ with heading marks, extracted figures and a plain-text rendition; see
 structure.py and docs/API.md (sidecar protocol) for the format.
 """
 from contextlib import closing
+from dataclasses import replace
 from io import BytesIO
 from pathlib import Path
 import json
@@ -13,7 +14,7 @@ import sys
 
 import chapters
 from figures import Figures
-from structure import Block, Unit
+from structure import Block, Unit, unicode_issues
 
 
 class DocumentError(ValueError):
@@ -65,6 +66,13 @@ def normalized(text):
     return re.sub(r"\W+", "", text, flags=re.UNICODE).casefold()
 
 
+def same_text(recognized, existing):
+    # Case, operators, superscripts and mathematical alphabets carry meaning.
+    # Only whitespace is ignored, and corrupt mappings never suppress OCR.
+    return (not unicode_issues(existing) and bool(existing.strip())
+            and re.sub(r'\s+', '', recognized) == re.sub(r'\s+', '', existing))
+
+
 # --------------------------------------------------------------------------- PDF
 
 def _line_sizes(textpage):
@@ -98,6 +106,40 @@ def _read_toc(pdf):
     return toc
 
 
+def _native_blocks(textpage):
+    """Read full Unicode scalars and their boxes; never decode through UCS-2."""
+    import pypdfium2.raw as raw
+    blocks, chars, boxes, sizes = [], [], [], []
+
+    def flush():
+        # Some ToUnicode maps expose non-BMP characters as two UTF-16 units.
+        # Join valid pairs, while retaining a visible replacement for broken ones.
+        text = ''.join(chars).encode('utf-16-le', errors='surrogatepass').decode('utf-16-le', errors='replace')
+        if text.strip():
+            bbox = ([min(b[0] for b in boxes), min(b[1] for b in boxes),
+                     max(b[2] for b in boxes), max(b[3] for b in boxes)] if boxes else None)
+            blocks.append(Block(text.strip(), raw_text=text, bbox=bbox,
+                                size=sorted(sizes)[len(sizes) // 2] if sizes else None))
+        chars.clear()
+        boxes.clear()
+        sizes.clear()
+
+    for index in range(textpage.count_chars()):
+        scalar = raw.FPDFText_GetUnicode(textpage, index)
+        char = chr(scalar) if 0 < scalar <= 0x10ffff else '\ufffd'
+        if char in '\r\n':
+            flush()
+            continue
+        chars.append(char)
+        if not char.isspace():
+            boxes.append(textpage.get_charbox(index))
+            size = raw.FPDFText_GetFontSize(textpage, index)
+            if size > 0:
+                sizes.append(size)
+    flush()
+    return blocks
+
+
 def parse_pdf(path, ocr, figures, progress):
     import pypdfium2 as pdfium
     import pypdfium2.raw as raw
@@ -115,13 +157,11 @@ def parse_pdf(path, ocr, figures, progress):
         for number in range(total):
             progress(number + 1, total)
             with closing(pdf[number]) as page, closing(page.get_textpage()) as textpage:
-                native = textpage.get_text_bounded().strip()
-                sizes = _line_sizes(textpage) if native else {}
-                blocks = [Block(line.strip(), size=sizes.get(normalized(line)))
-                          for line in native.splitlines() if line.strip()]
+                blocks = _native_blocks(textpage)
+                native = '\n'.join(b.text for b in blocks)
                 extra = []
                 has_images = any(page.get_objects(filter=[raw.FPDF_PAGEOBJ_IMAGE]))
-                if has_images or not native:
+                if has_images or not native or unicode_issues(native):
                     # Render one page at a time; coordinates account for rotation/crop boxes.
                     scale = min(2.5, 3000 / max(page.get_size()))
                     with closing(page.render(scale=scale)) as bitmap:
@@ -136,19 +176,29 @@ def parse_pdf(path, ocr, figures, progress):
                                 )
                                 # Only deduplicate text from the SAME location, not equal
                                 # phrases elsewhere in the page or on another page.
-                                recognized, existing = normalized(text), normalized(covered)
-                                if existing and recognized and (recognized in existing or
-                                        (existing in recognized and len(existing) / len(recognized) > 0.9)):
+                                if same_text(text, covered):
                                     continue
-                                extra.append(text)
+                                extra.append(Block(text, kind="ocr", size=max(ys) - min(ys),
+                                                   bbox=[min(xs), min(ys), max(xs), max(ys)]))
                         finally:
                             image.close()
                 if has_images:
                     figures.extract_pdf_page(page, number + 1)
-                blocks.extend(Block(text, kind="ocr") for text in extra if text.strip())
+                blocks.extend(block for block in extra if block.text.strip())
                 width, height = page.get_size()
+                # Sort in display space, including the PDF's rotation/crop box;
+                # retain source boxes in PDF canvas coordinates for provenance.
+                display = pdfium.PdfPosConv(page, (0, 0, round(width * 4), round(height * 4), 0))
+                def reading_key(block):
+                    if not block.bbox:
+                        return (float('inf'), 0)
+                    left, bottom, right, top = block.bbox
+                    points = [display.to_bitmap(x, y) for x in (left, right) for y in (bottom, top)]
+                    return (min(y for _, y in points), min(x for x, _ in points))
+                blocks.sort(key=reading_key)
                 units.append(Unit(number + 1, f"第 {number + 1} 页", blocks, round(width, 1),
-                                  round(height, 1), ocr=bool(extra)))
+                                  round(height, 1), ocr=bool(extra),
+                                  meta={"rotation": page.get_rotation(), "canvas": page.get_bbox()}))
     source = chapters.detect(units, "pdf", toc)
     for unit in units:
         merge_lines(unit)
@@ -173,12 +223,18 @@ def merge_lines(unit):
             previous is not None and typical
             and previous.kind == "text" and block.kind == "text"
             and previous.heading is None and block.heading is None
+            and not previous.formula and not block.formula
+            and not previous.issues and not block.issues
             and not previous.text.endswith(TERMINAL)
             and not chapters.TOC_LINE.search(previous.text) and not chapters.TOC_LINE.search(block.text)
             and len(previous.text.splitlines()[-1]) >= typical * 0.8
             and not (previous.size and block.size and abs(previous.size - block.size) > 1.5)
         )
         if joinable:
+            previous.raw_text += "\n" + block.raw_text
+            if previous.bbox and block.bbox:
+                previous.bbox = [min(previous.bbox[0], block.bbox[0]), min(previous.bbox[1], block.bbox[1]),
+                                 max(previous.bbox[2], block.bbox[2]), max(previous.bbox[3], block.bbox[3])]
             tail, head = previous.text[-1], block.text[0]
             if tail == "-" and head.islower():
                 previous.text = previous.text[:-1] + block.text
@@ -187,7 +243,7 @@ def merge_lines(unit):
             else:
                 previous.text += " " + block.text
         else:
-            merged.append(Block(block.text, block.heading, block.kind, block.size, block.source))
+            merged.append(replace(block))
     unit.blocks = merged
 
 
@@ -453,6 +509,9 @@ def parse_structured(path, figures_dir=None, progress=None):
     if not content:
         raise DocumentError("未提取到正文（已对图片尝试 OCR），请检查资料内容或扫描清晰度")
     warnings = []
+    suspect = sum(bool(b.issues) for u in units for b in u.blocks)
+    if suspect:
+        warnings.append(f"{suspect} 处内容含可疑 Unicode 映射，已保留提取原文，请对照原页面核验公式")
     if figures.skipped:
         warnings.append(f"{figures.skipped} 张图片因格式不支持或数量过多未保存")
     if loc_kind == "page" and units and sum(u.ocr for u in units) == len(units):

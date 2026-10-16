@@ -37,6 +37,11 @@ export interface Section {
   page_end: number
   char_count: number
   loc_label: string
+  block_start?: number
+  block_end?: number
+  source?: string
+  user_edited?: boolean
+  locked?: boolean
 }
 
 export interface CourseSection extends Section {
@@ -48,6 +53,12 @@ export interface Block {
   text: string
   heading: number | null
   kind: string
+  raw_text?: string | null
+  bbox?: [number, number, number, number] | null
+  source?: string | null
+  recognition?: string
+  issues?: string[]
+  formula?: boolean
 }
 
 export interface ImageInfo {
@@ -102,3 +113,8 @@ export interface SearchResult {
   terms: string[]
   hits: SearchHit[]
 }
+export type SectionEdit =
+  | { action: 'rename'; title: string }
+  | { action: 'lock'; locked: boolean }
+  | { action: 'merge'; next_id: number }
+  | { action: 'split'; page: number; block: number; title: string }

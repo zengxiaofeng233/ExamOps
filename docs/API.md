@@ -103,6 +103,7 @@
 | `reprocess_document` | `id`: i64, `onProgress`: Channel | Document | 重新解析资料（失败时保留原结果，章节引用自动迁移）。 |
 | `delete_document` | `id`: i64 | () | 删除资料及其章节、片段和图片（原文件不受影响）。 |
 | `get_document_sections` | `documentId`: i64 | Vec<Section> | 资料的章节树。 |
+| `edit_document_section` | `documentId`: i64, `sectionId`: i64, `edit`: documents::edit::SectionEdit | Vec<Section> | 手动调整章节；保留原文及已有引用，和重新解析互斥。 |
 | `get_course_sections` | `courseId`: i64 | Vec<CourseSection> | 课程全部资料的章节（用于章节选择）。 |
 | `get_document_pages` | `documentId`: i64, `start`: i64, `end`: i64 | Vec<PageView> | 指定范围的页面 / 单元内容。 |
 | `get_page_preview` | `documentId`: i64, `page`: i64, `width`: Option<u32> | String | PDF 原页面预览图（data URL，按需渲染并缓存）。 |

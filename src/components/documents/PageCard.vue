@@ -8,9 +8,17 @@
   >
     <span class="w-16 shrink-0 pt-1 text-right text-[11px] text-slate-400 select-none" :title="page.label">{{ page.label.replace(/^第 /, '').replace(/ (段|行)$/, '') }}</span>
     <div class="min-w-0 flex-1 space-y-2 text-[15px] leading-7 text-slate-800">
-      <component :is="block.heading ? `h${Math.min(block.heading + 2, 6)}` : 'p'" v-for="(block, index) in visibleBlocks" :key="index" :class="blockClass(block)">
-        <HighlightText :text="block.text" :terms="terms" />
-      </component>
+      <div v-for="(block, index) in visibleBlocks" :key="index">
+        <button v-if="canSplit" class="mb-1 text-xs text-indigo-600 underline" @click="emit('split', (blockOffset ?? 0) + page.blocks.indexOf(block))">从此块拆分</button>
+        <component :is="block.heading ? `h${Math.min(block.heading + 2, 6)}` : 'p'" :class="blockClass(block)">
+          <HighlightText :text="block.text" :terms="terms" />
+        </component>
+        <p v-if="unreliable(block)" class="text-xs text-amber-700">识别结果待核验，请对照原文。</p>
+        <details v-if="block.formula || block.issues?.length" class="text-xs text-slate-600">
+          <summary class="cursor-pointer">查看提取原文</summary>
+          <pre class="overflow-x-auto whitespace-pre-wrap break-words">{{ block.raw_text ?? block.text }}</pre>
+        </details>
+      </div>
       <div v-if="page.images.length" class="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <button
           v-for="image in page.images"
@@ -48,9 +56,22 @@
       />
     </div>
     <div class="space-y-2 px-4 py-3 text-[15px] leading-7 text-slate-800">
-      <component :is="block.heading ? `h${Math.min(block.heading + 2, 6)}` : 'p'" v-for="(block, index) in visibleBlocks" :key="index" :class="blockClass(block)">
-        <HighlightText :text="block.text" :terms="terms" />
-      </component>
+      <p v-if="page.has_ocr" class="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">OCR 文字未经人工核验，公式、上下标和分式请对照原页面。</p>
+      <div v-for="(block, index) in visibleBlocks" :key="index">
+        <button v-if="canSplit" class="mb-1 text-xs text-indigo-600 underline" @click="emit('split', (blockOffset ?? 0) + page.blocks.indexOf(block))">从此块拆分</button>
+        <component :is="block.heading ? `h${Math.min(block.heading + 2, 6)}` : 'p'" :class="blockClass(block)">
+          <HighlightText :text="block.text" :terms="terms" />
+        </component>
+        <div v-if="unreliable(block)" class="mt-1 text-xs text-amber-700">
+          公式或字符识别待核验
+          <button v-if="previewable" class="ml-2 underline" @click="showPreview = true">对照原页面</button>
+        </div>
+        <details v-if="block.formula || block.issues?.length" class="text-xs text-slate-600">
+          <summary class="cursor-pointer py-1">查看提取原文</summary>
+          <pre class="rounded bg-slate-50 p-2 whitespace-pre-wrap break-words">{{ block.raw_text ?? block.text }}</pre>
+          <p v-if="block.issues?.length">可疑字符：{{ block.issues.join('、') }}</p>
+        </details>
+      </div>
     </div>
     <div v-if="page.images.length" class="grid grid-cols-2 gap-3 border-t border-slate-100 px-4 py-3 sm:grid-cols-3">
       <button
@@ -82,14 +103,20 @@ const props = defineProps<{
   targeted?: boolean
   previewAll?: boolean
   /** Paragraph / line units: render inline instead of as page cards. */
+  canSplit?: boolean
+  blockOffset?: number
   compact?: boolean
 }>()
-const emit = defineEmits<{ 'open-image': [image: ImageInfo] }>()
+const emit = defineEmits<{ 'open-image': [image: ImageInfo]; split: [block: number] }>()
 
 const previewable = computed(() => props.fileType === 'pdf')
 // Bookmark titles that are not printed on the page only appear in the chapter tree.
 const visibleBlocks = computed(() => props.page.blocks.filter(b => b.kind !== 'synthetic'))
 const showPreview = ref(!!props.previewAll)
+
+function unreliable(block: Block) {
+  return !!block.issues?.length || (block.formula && block.recognition !== 'native')
+}
 
 function blockClass(block: Block) {
   if (block.heading === 1) return 'pt-1 text-lg font-semibold text-slate-900'

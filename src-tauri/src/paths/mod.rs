@@ -419,11 +419,11 @@ struct Chapter {
     file_type: String,
 }
 
-/// Level-1 sections of the documents, in order (generated groups excluded).
+/// Real top-level chapters or virtual topic units, in reading order.
 fn chapters(conn: &Connection, course_id: i64, document_ids: &[i64]) -> AppResult<Vec<Chapter>> {
     let mut stmt = conn.prepare(
         "SELECT s.id, s.document_id, d.file_type, s.source, s.char_count FROM document_sections s JOIN documents d ON d.id = s.document_id
-         WHERE d.course_id = ?1 AND d.status = 'completed' AND s.level = 1 ORDER BY d.id, s.ordinal",
+         WHERE d.course_id = ?1 AND d.status = 'completed' AND (s.level = 1 OR s.source = 'topic') ORDER BY d.id, s.ordinal",
     )?;
     let rows = stmt.query_map([course_id], |r| Ok((r.get::<_, i64>(0)?, r.get::<_, i64>(1)?, r.get::<_, String>(2)?, r.get::<_, String>(3)?, r.get::<_, i64>(4)?)))?;
     let rows: Vec<(i64, i64, String, String, i64)> = rows.collect::<rusqlite::Result<_>>()?;
@@ -713,7 +713,7 @@ mod tests {
     fn templates_skip_a_table_of_contents_but_keep_a_real_preface() {
         use crate::documents::parse::{Extraction, ParsedBlock, ParsedPage};
         let (paths, mut conn) = test_support::course_with_document();
-        let block = |text: &str, heading: Option<u8>| ParsedBlock { text: text.into(), heading, kind: "text".into() };
+        let block = |text: &str, heading: Option<u8>| ParsedBlock { text: text.into(), heading, kind: "text".into(), ..Default::default() };
         let page = |n: i64, blocks| ParsedPage { number: n, label: format!("第 {n} 页"), width: None, height: None, ocr: false, loc_start: n, loc_end: n, blocks };
         let toc = (1..=12).map(|i| format!("第{i}章 内容标题示例 ........ {}", i * 10)).collect::<Vec<_>>().join("\n");
         let book = |front: String| Extraction {
@@ -737,6 +737,30 @@ mod tests {
         crate::documents::apply_extraction(&mut conn, document.id, &book("本书的写作目的是帮助学生理解线性代数。".repeat(30))).unwrap();
         let detail = from_template(&mut conn, TemplateInput { course_id: 2, name: None, mode: Some("review".into()), document_ids: vec![], include_quiz: false }).unwrap();
         assert_eq!(detail.steps.len(), 3);
+        drop(conn);
+        test_support::cleanup(paths);
+    }
+
+    #[test]
+    fn virtual_topic_units_are_readable_template_steps() {
+        let (paths, mut conn) = test_support::course_with_document();
+        let mut extraction = test_support::sample_extraction();
+        extraction.structure_source = "topic".into();
+        for page in &mut extraction.pages {
+            for block in &mut page.blocks {
+                if block.heading.is_some() {
+                    block.heading = Some(1);
+                    block.source = Some("topic".into());
+                    block.kind = "synthetic".into();
+                    block.text = format!("主题学习单元 {}", page.number);
+                }
+            }
+        }
+        crate::documents::apply_extraction(&mut conn, 1, &extraction).unwrap();
+        let detail = from_template(&mut conn, TemplateInput { course_id: 1, name: None, mode: None, document_ids: vec![1], include_quiz: false }).unwrap();
+        let reads: Vec<_> = detail.steps.iter().filter(|s| s.kind == "read_text").collect();
+        assert_eq!(reads.len(), 3);
+        assert!(reads.iter().all(|s| s.section_id.is_some() && s.title.contains("主题学习单元")));
         drop(conn);
         test_support::cleanup(paths);
     }

@@ -43,6 +43,7 @@ pub struct ChunkHit {
     pub loc_label: String,
     pub content: String,
     pub score: f64,
+    pub unreliable_formula: bool,
 }
 
 /// Restricts a search to part of a course.
@@ -79,7 +80,7 @@ pub fn retrieve(conn: &Connection, course_id: i64, query: &str, mode: QueryMode,
     args.push(Value::Integer(limit.clamp(1, 200) as i64));
     let sql = format!(
         "SELECT c.id, c.document_id, d.filename, c.section_id, s.title, c.chunk_index, c.page_start, c.page_end,
-                c.loc_label, c.content, bm25(document_chunks_fts) AS score
+                c.loc_label, c.content, bm25(document_chunks_fts) AS score, c.unreliable_formula
          FROM document_chunks_fts
          JOIN document_chunks c ON c.id = document_chunks_fts.rowid
          JOIN documents d ON d.id = c.document_id
@@ -102,6 +103,7 @@ pub fn retrieve(conn: &Connection, course_id: i64, query: &str, mode: QueryMode,
             loc_label: r.get(8)?,
             content: r.get(9)?,
             score: r.get(10)?,
+            unreliable_formula: r.get(11)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)

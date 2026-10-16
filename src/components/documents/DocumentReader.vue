@@ -8,7 +8,7 @@
           <p class="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
             <span>{{ FILE_LABELS[document.file_type] ?? document.file_type }}</span>
             <span v-if="document.status === 'completed'">{{ unitCount(document) }}</span>
-            <span v-if="document.status === 'completed'">{{ document.section_count }} 个章节</span>
+            <span v-if="document.status === 'completed'">{{ sections.length }} 个章节 / 学习单元</span>
             <span v-if="document.image_count">{{ document.image_count }} 张图片</span>
             <span v-if="document.char_count">{{ document.char_count.toLocaleString() }} 字</span>
             <span v-if="document.status === 'completed'" :class="document.structure_source === 'legacy' ? 'text-amber-600' : ''">
@@ -17,10 +17,10 @@
           </p>
         </div>
         <div class="flex shrink-0 gap-1.5">
-          <button class="btn btn-secondary btn-sm" :disabled="busy" @click="emit('reprocess')">
+          <button class="btn btn-secondary btn-sm" :disabled="busy || editing" @click="emit('reprocess')">
             <ArrowPathIcon class="size-3.5" />重新解析
           </button>
-          <button class="btn btn-ghost btn-sm text-rose-600 hover:text-rose-700" :disabled="busy" @click="emit('delete')">删除</button>
+          <button class="btn btn-ghost btn-sm text-rose-600 hover:text-rose-700" :disabled="busy || editing" @click="emit('delete')">删除</button>
         </div>
       </div>
       <ul v-if="document.warnings.length" class="mt-2 space-y-1">
@@ -39,7 +39,8 @@
     <div v-else class="flex min-h-0 flex-1">
       <aside class="w-56 shrink-0 overflow-y-auto border-r border-slate-200 bg-surface p-2 xl:w-64">
         <p v-if="loadingSections" class="p-3 text-sm text-slate-400">加载目录…</p>
-        <SectionTree v-else :sections="sections" :active-id="active?.id" @select="(s) => selectSection(s)" />
+        <SectionTree v-else :sections="sections" :active-id="active?.id" editable :busy="busy || editing" @select="(s) => selectSection(s)" @edit="editSection" @split="(section, title) => (splitting = { section, title })" />
+        <p v-if="editError" role="alert" class="p-2 text-xs text-rose-600">{{ editError }}</p>
       </aside>
 
       <section class="flex min-w-0 flex-1 flex-col bg-slate-50">
@@ -84,12 +85,15 @@
         </div>
 
         <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
+          <p v-if="splitting" class="mb-3 rounded bg-indigo-50 p-3 text-sm text-indigo-800">选择新章节“{{ splitting.title }}”的第一个正文块。
+            <button class="ml-2 underline" @click="splitting = null">取消拆分</button>
+          </p>
           <p v-if="loadingPages" class="text-sm text-slate-400">加载内容…</p>
           <p v-else-if="pageError" class="text-sm text-rose-600">{{ pageError }}</p>
           <div v-else class="mx-auto max-w-3xl space-y-3">
             <div :class="compact ? 'card space-y-0.5 px-3 py-4' : 'space-y-3'">
               <PageCard
-                v-for="page in pages"
+                v-for="page in sectionPages"
                 :key="`${page.page_number}-${previewAll}`"
                 :page="page"
                 :document-id="document.id"
@@ -98,6 +102,9 @@
                 :targeted="page.page_number === targeted"
                 :preview-all="previewAll"
                 :compact="compact"
+                :can-split="!!splitting && !editing && !busy"
+                :block-offset="page.page_number === active?.page_start ? (active.block_start ?? 0) : 0"
+                @split="(block) => splitting && editSection(splitting.section, { action: 'split', page: page.page_number, block, title: splitting.title })"
                 @open-image="(image) => (viewing = { image, label: page.label })"
               />
             </div>
@@ -123,7 +130,7 @@ import SectionTree from './SectionTree.vue'
 import PageCard from './PageCard.vue'
 import ImageViewer from './ImageViewer.vue'
 import { DocumentService } from '@/services/document'
-import type { Document, ImageInfo, PageView, Section } from '@/types/document'
+import type { Document, ImageInfo, PageView, Section, SectionEdit } from '@/types/document'
 import { FILE_LABELS, STRUCTURE_LABELS, UNIT_NAMES, unitCount } from '@/utils/documents'
 import { errorMessage } from '@/utils/errors'
 
@@ -141,6 +148,26 @@ const props = defineProps<{
 const emit = defineEmits<{ reprocess: []; delete: []; 'visible-page': [page: number] }>()
 
 const sections = ref<Section[]>([])
+const editing = ref(false)
+const editError = ref('')
+const splitting = ref<{ section: Section; title: string } | null>(null)
+
+async function editSection(section: Section, edit: SectionEdit) {
+  if (editing.value || props.busy) return
+  editing.value = true
+  editError.value = ''
+  try {
+    const updated = await DocumentService.editSection(props.document.id, section.id, edit)
+    sections.value = updated
+    splitting.value = null
+    const selected = updated.find(s => s.id === section.id)
+    if (selected) await selectSection(selected)
+  } catch (e) {
+    editError.value = errorMessage(e)
+  } finally {
+    editing.value = false
+  }
+}
 const active = ref<Section | null>(null)
 const pages = ref<PageView[]>([])
 const loadedEnd = ref(0)
@@ -155,6 +182,13 @@ const viewing = ref<{ image: ImageInfo; label: string } | null>(null)
 /** Top-most visible unit (for notes taken while reading). */
 const currentPage = ref<number | null>(null)
 const terms = computed(() => props.terms ?? [])
+const sectionPages = computed(() => pages.value.map(page => {
+  const section = active.value
+  if (!section) return page
+  const start = page.page_number === section.page_start ? (section.block_start ?? 0) : 0
+  const end = page.page_number === section.page_end ? (section.block_end ?? page.blocks.length - 1) + 1 : page.blocks.length
+  return { ...page, blocks: page.blocks.slice(start, end) }
+}))
 
 const jumpable = computed(() => props.document.loc_kind === 'page' || props.document.loc_kind === 'slide')
 const compact = computed(() => props.document.loc_kind === 'paragraph' || props.document.loc_kind === 'line')
@@ -183,6 +217,7 @@ async function loadSections() {
 }
 
 async function selectSection(section: Section, page?: number) {
+  splitting.value = null
   active.value = section
   targeted.value = page ?? null
   pageError.value = ''
@@ -260,6 +295,8 @@ onBeforeUnmount(() => {
 })
 
 watch(() => [props.document.id, props.document.indexed_at, props.document.status], async () => {
+  splitting.value = null
+  editError.value = ''
   pages.value = []
   active.value = null
   if (props.document.status !== 'completed') return

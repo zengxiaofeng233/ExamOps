@@ -1,6 +1,7 @@
 //! Document Engine: import, structured parsing, storage, reading and deletion.
 
 pub mod index;
+pub mod edit;
 pub mod parse;
 
 use crate::error::{AppError, AppResult, OptionalRow};
@@ -51,6 +52,11 @@ pub struct Section {
     pub page_end: i64,
     pub char_count: i64,
     pub loc_label: String,
+    pub block_start: i64,
+    pub block_end: i64,
+    pub source: String,
+    pub user_edited: bool,
+    pub locked: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -236,6 +242,7 @@ pub fn restore_after_failed_reparse(conn: &Connection, id: i64) -> AppResult<()>
 
 /// Stores a successful extraction: text, units, chapters, chunks, index and figures.
 pub fn apply_extraction(conn: &mut Connection, id: i64, extraction: &Extraction) -> AppResult<Document> {
+    edit::validate_locked(conn, id, extraction)?;
     let filename: String = conn
         .query_row("SELECT filename FROM documents WHERE id = ?1", [id], |r| r.get(0))
         .or_not_found("资料")?;
@@ -273,6 +280,11 @@ pub async fn process(
     let mut conn = paths.connect()?;
     match result {
         Ok(mut extraction) => {
+            if let Err(error) = edit::validate_locked(&conn, id, &extraction) {
+                let _ = fs::remove_dir_all(&staging);
+                restore_after_failed_reparse(&conn, id)?;
+                return Err(error);
+            }
             // Swap in the new figures, then point records at their final location.
             if final_dir.exists() {
                 fs::remove_dir_all(&final_dir)?;
@@ -341,7 +353,8 @@ pub fn sections(conn: &Connection, document_id: i64) -> AppResult<Vec<Section>> 
     let mut stmt = conn.prepare(
         "SELECT s.id, s.document_id, s.parent_id, s.ordinal, s.level, s.title, s.page_start, s.page_end, s.char_count,
                 (SELECT loc_start FROM document_pages p WHERE p.document_id = s.document_id AND p.page_number = s.page_start),
-                (SELECT loc_end FROM document_pages p WHERE p.document_id = s.document_id AND p.page_number = s.page_end)
+                (SELECT loc_end FROM document_pages p WHERE p.document_id = s.document_id AND p.page_number = s.page_end),
+                s.block_start, s.block_end, s.source, s.user_edited, s.locked
          FROM document_sections s WHERE s.document_id = ?1 ORDER BY s.ordinal",
     )?;
     let rows = stmt.query_map([document_id], |r| {
@@ -365,6 +378,11 @@ pub fn sections(conn: &Connection, document_id: i64) -> AppResult<Vec<Section>> 
             page_end,
             char_count: r.get(8)?,
             loc_label: index::loc_label(&loc_kind, a, b),
+            block_start: r.get(11)?,
+            block_end: r.get(12)?,
+            source: r.get(13)?,
+            user_edited: r.get(14)?,
+            locked: r.get(15)?,
         })
     })?;
     Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -586,6 +604,45 @@ mod tests {
         assert_eq!(chunks, fts);
         delete_document(&mut conn, &paths, 1).unwrap();
         assert!(get(&conn, 1).is_err());
+        drop(conn);
+        test_support::cleanup(paths);
+    }
+
+    #[test]
+    fn formula_warnings_and_source_text_survive_storage_and_retrieval() {
+        let (paths, mut conn) = test_support::course_with_document();
+        let mut extraction = sample_extraction();
+        let formula = ParsedBlock { text: "公式 𝑥²≠α".into(), raw_text: Some("公式 𝑥²≠α".into()),
+            formula: true, recognition: "unverified".into(), bbox: Some([1., 2., 30., 40.]),
+            kind: "ocr".into(), ..Default::default() };
+        extraction.pages[0].blocks.push(formula.clone());
+        apply_extraction(&mut conn, 1, &extraction).unwrap();
+        assert_eq!(pages(&conn, 1, 1, 1).unwrap()[0].blocks.last(), Some(&formula));
+        let hits = crate::context::scope_chunks(&conn, 1, &Default::default()).unwrap();
+        assert_eq!(hits.iter().filter(|c| c.unreliable_formula).count(), 1);
+        assert!(crate::context::render(&hits, 1).0.contains("识别警告"));
+        let retrieved = crate::search::retrieve(&conn, 1, "公式", crate::search::segment::QueryMode::All, &Default::default(), 5).unwrap();
+        assert!(retrieved[0].unreliable_formula);
+        drop(conn);
+        test_support::cleanup(paths);
+    }
+
+    #[test]
+    fn corrected_same_page_titles_keep_existing_note_references() {
+        let (paths, mut conn) = test_support::course_with_document();
+        let mut extraction = sample_extraction();
+        extraction.pages.truncate(1);
+        extraction.pages[0].blocks.extend([
+            ParsedBlock { text: "第二章旧识别".into(), heading: Some(1), ..Default::default() },
+            ParsedBlock { text: "第二章正文".into(), ..Default::default() },
+        ]);
+        apply_extraction(&mut conn, 1, &extraction).unwrap();
+        let old = sections(&conn, 1).unwrap()[1].id;
+        conn.execute("INSERT INTO notes (course_id, title, content, document_id, section_id) VALUES (1, '笔记', '保留', 1, ?1)", [old]).unwrap();
+        extraction.pages[0].blocks[2].text = "第二章正确标题".into();
+        apply_extraction(&mut conn, 1, &extraction).unwrap();
+        let title: String = conn.query_row("SELECT s.title FROM notes n JOIN document_sections s ON n.section_id = s.id", [], |r| r.get(0)).unwrap();
+        assert_eq!(title, "第二章正确标题");
         drop(conn);
         test_support::cleanup(paths);
     }
