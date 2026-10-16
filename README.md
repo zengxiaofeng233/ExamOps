@@ -6,7 +6,7 @@
 
 *Local-First AI Study & Exam Preparation Assistant Powered by Tauri 2 + Rust + Vue 3*
 
-[![Release](https://img.shields.io/badge/Release-v0.2.1-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
+[![Release](https://img.shields.io/badge/Release-v0.2.2-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/INSTALL.md)
 [![Tauri](https://img.shields.io/badge/Tauri-v2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app/)
