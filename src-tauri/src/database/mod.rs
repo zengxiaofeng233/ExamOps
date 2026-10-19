@@ -74,42 +74,56 @@ pub fn init_database(paths: &AppPaths) -> std::result::Result<(), String> {
         std::fs::create_dir_all(dir).map_err(|e| format!("无法创建数据目录：{e}"))?;
     }
     let conn = open_and_migrate(&paths.db_path)?;
+    recover_figure_swaps(paths, &conn).map_err(|e| e.to_string())?;
     recover_interrupted(&conn).map_err(|e| e.to_string())?;
-    remove_abandoned_staging(&paths.documents_dir);
+    remove_abandoned_staging(&paths.documents_dir, &conn);
     Ok(())
 }
 
-/// Imports and re-parses cut off by a crash or forced exit. A re-parse of a
-/// document that already had a good result keeps it (as a failed re-parse
-/// does); a first import is marked failed so the student can parse it again.
+/// Finish or roll back a directory swap interrupted around the final DB commit.
+fn recover_figure_swaps(paths: &AppPaths, conn: &Connection) -> std::io::Result<()> {
+    let mut stmt = conn.prepare("SELECT d.id,d.course_id,COALESCE(j.figure_swap_committed,1) FROM documents d LEFT JOIN document_jobs j ON j.document_id=d.id")
+        .map_err(std::io::Error::other)?;
+    let rows = stmt.query_map([], |r| Ok((r.get::<_,i64>(0)?,r.get::<_,i64>(1)?,r.get::<_,bool>(2)?)))
+        .map_err(std::io::Error::other)?;
+    for row in rows {
+        let (id,course,committed) = row.map_err(std::io::Error::other)?;
+        let directory = crate::documents::figures_dir(&paths.documents_dir,course,id);
+        let backup = directory.with_extension("old");
+        if backup.is_dir() {
+            if committed { std::fs::remove_dir_all(backup)?; }
+            else {
+                if directory.exists() { std::fs::remove_dir_all(&directory)?; }
+                std::fs::rename(backup,directory)?;
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Requeue interrupted jobs. Completed data stays available during a re-parse;
+/// first imports replay validated checkpoints into provisional page storage.
 pub fn recover_interrupted(conn: &Connection) -> Result<()> {
-    conn.execute(
-        "UPDATE documents SET status = 'completed'
-        WHERE status IN ('pending', 'processing')
-          AND EXISTS (SELECT 1 FROM document_contents c WHERE c.document_id = documents.id AND c.content <> '')",
-        [],
-    )?;
-    conn.execute(
-        "UPDATE document_contents SET error = '上次正文提取被中断，请重新解析'
-        WHERE document_id IN (SELECT id FROM documents WHERE status IN ('pending', 'processing'))",
-        [],
-    )?;
-    conn.execute(
-        "UPDATE documents SET status = 'failed' WHERE status IN ('pending', 'processing')",
-        [],
-    )?;
+    conn.execute("INSERT OR IGNORE INTO document_jobs(document_id,keep_previous)
+        SELECT d.id, EXISTS(SELECT 1 FROM document_contents c WHERE c.document_id=d.id AND c.content <> '')
+        FROM documents d WHERE d.status IN ('pending','processing')", [])?;
+    conn.execute("UPDATE document_jobs SET keep_previous=1 WHERE state IN ('running','pending') AND EXISTS(SELECT 1 FROM documents d WHERE d.id=document_id AND d.indexed_at IS NOT NULL)", [])?;
+    conn.execute("UPDATE document_jobs SET state='pending' WHERE state='running'", [])?;
+    conn.execute("UPDATE documents SET status='pending' WHERE id IN (SELECT document_id FROM document_jobs WHERE state='pending')", [])?;
     Ok(())
 }
 
 /// Figures extracted by a parse that never finished (`documents/<course>/<id>_figures.new`).
-fn remove_abandoned_staging(documents_dir: &Path) {
+fn remove_abandoned_staging(documents_dir: &Path, conn: &Connection) {
     let Ok(courses) = std::fs::read_dir(documents_dir) else { return };
     for course in courses.flatten() {
         let Ok(entries) = std::fs::read_dir(course.path()) else { continue };
         for entry in entries.flatten() {
             let path = entry.path();
             if path.is_dir() && path.extension().is_some_and(|ext| ext == "new") {
-                let _ = std::fs::remove_dir_all(path);
+                let id = path.file_stem().and_then(|s| s.to_str()).and_then(|s| s.strip_suffix("_figures")).and_then(|s| s.parse::<i64>().ok());
+                let pending = id.is_some_and(|id| conn.query_row("SELECT EXISTS(SELECT 1 FROM document_jobs WHERE document_id=?1 AND state != 'done')", [id], |r| r.get::<_,bool>(0)).unwrap_or(true));
+                if !pending { let _ = std::fs::remove_dir_all(path); }
             }
         }
     }
@@ -119,6 +133,33 @@ fn remove_abandoned_staging(documents_dir: &Path) {
 mod tests {
     use crate::test_support;
     use std::time::{Duration, Instant};
+
+    #[test]
+    fn interrupted_figure_swap_restores_old_files_until_database_commit() {
+        let (paths, mut conn) = test_support::course_with_document();
+        crate::documents::jobs::enqueue(&mut conn,1,true).unwrap();
+        crate::documents::jobs::begin(&mut conn,1).unwrap();
+        conn.execute("UPDATE document_jobs SET figure_swap_committed=0 WHERE document_id=1",[]).unwrap();
+        let final_dir = crate::documents::figures_dir(&paths.documents_dir,1,1);
+        let backup = final_dir.with_extension("old");
+        std::fs::create_dir_all(&final_dir).unwrap();
+        std::fs::create_dir_all(&backup).unwrap();
+        std::fs::write(final_dir.join("image.png"),b"uncommitted new image").unwrap();
+        std::fs::write(backup.join("image.png"),b"previous good image").unwrap();
+        drop(conn);
+        super::init_database(&paths).unwrap();
+        assert_eq!(std::fs::read(final_dir.join("image.png")).unwrap(),b"previous good image");
+        assert!(!backup.exists());
+        let conn = paths.connect().unwrap();
+        // A new job may already be pending after the previous result committed.
+        conn.execute("UPDATE document_jobs SET state='pending',figure_swap_committed=1 WHERE document_id=1",[]).unwrap();
+        std::fs::create_dir_all(&backup).unwrap();
+        std::fs::write(backup.join("image.png"),b"obsolete image").unwrap();
+        super::recover_figure_swaps(&paths,&conn).unwrap();
+        assert!(!backup.exists());
+        assert_eq!(std::fs::read(final_dir.join("image.png")).unwrap(),b"previous good image");
+        drop(conn); test_support::cleanup(paths);
+    }
 
     #[test]
     fn work_cut_off_by_a_crash_is_recovered_at_start_up() {
@@ -138,12 +179,12 @@ mod tests {
         super::init_database(&paths).unwrap();
         let conn = paths.connect().unwrap();
         let first = crate::documents::get(&conn, 1).unwrap();
-        assert_eq!((first.status.as_str(), first.error), ("completed", None));
+        assert_eq!((first.status.as_str(), first.error), ("pending", None));
         assert!(crate::documents::body(&conn, 1).unwrap().contains("函数"));
         let second = crate::documents::get(&conn, 2).unwrap();
-        assert_eq!(second.status, "failed");
-        assert_eq!(second.error.as_deref(), Some("上次正文提取被中断，请重新解析"));
-        assert!(!staging.exists());
+        assert_eq!(second.status, "pending");
+        assert_eq!(second.error, None);
+        assert!(staging.exists());
         drop(conn);
         test_support::cleanup(paths);
     }

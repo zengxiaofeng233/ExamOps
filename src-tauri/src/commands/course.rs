@@ -107,6 +107,7 @@ pub async fn delete_course(
     id: i64,
 ) -> AppResult<()> {
     let _guard = tasks.0.lock().await;
+    let _registration = tasks.2.lock().await;
     let paths = paths.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let mut conn = paths.connect()?;

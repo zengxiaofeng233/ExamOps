@@ -24,6 +24,9 @@ export interface Document {
   indexed_at: string | null
   section_count: number
   image_count: number
+  completed_units?: number
+  total_units?: number
+  task_error?: string | null
 }
 
 export interface Section {

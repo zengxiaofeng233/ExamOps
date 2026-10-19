@@ -6,7 +6,7 @@
 
 *Local-First AI Study & Exam Preparation Assistant Powered by Tauri 2 + Rust + Vue 3*
 
-[![Release](https://img.shields.io/badge/Release-v0.2.2-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
+[![Release](https://img.shields.io/badge/Release-v0.2.3-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/INSTALL.md)
 [![Tauri](https://img.shields.io/badge/Tauri-v2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app/)
@@ -112,7 +112,8 @@
    - 点击“测试连接”，确认成功后设为默认。
 3. **开启学习之旅**：
    - **创建课程**：在“我的课程”中新建课程，设定考试目标日期。
-   - **导入资料**：导入教材 PDF 或 PPT，等待解析与 OCR 结构化完成。
+   - **导入资料**：资料保存后进入后台队列，已识别页面可提前阅读；整份解析完成后开放章节、搜索与 AI。关闭软件会停止识别，下次打开自动续扫。
+   - **识别加速**：PDF 使用区域 OCR、自适应分辨率和按页缓存；CPU 并发数随可用内存调整。设置 → 通用 → 资料识别可切换显卡加速，Windows 使用 DirectML，不可用时回退 CPU。
    - **生成路径**：提取知识点并一键生成学习路径。
    - **开始互动**：点击进入“AI 学习”，享受精准、严谨的伴学体验！
 

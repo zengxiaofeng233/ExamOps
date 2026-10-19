@@ -26,7 +26,7 @@
                 <span>{{ FILE_LABELS[item.file_type] ?? item.file_type }}</span>
                 <span v-if="item.status === 'completed'">· {{ item.section_count }} 章节</span>
               </p>
-              <p v-if="progress[item.id] && item.status === 'processing'" class="mt-1 text-xs text-indigo-600">{{ progressText(item.id) }}</p>
+              <p v-if="item.status === 'processing'" class="mt-1 text-xs text-indigo-600">{{ progressText(item.id) }}</p>
             </button>
           </li>
         </ul>
@@ -178,7 +178,7 @@ async function refresh() {
 }
 
 // Poll only the visible page. Returning during a task immediately resumes its progress display.
-watch(() => importing.value || reprocessing.value, busy => {
+watch(() => importing.value || reprocessing.value || documents.value.some(d => d.status === 'pending' || d.status === 'processing'), busy => {
   clearInterval(poll)
   if (busy) poll = setInterval(() => refresh().catch(() => undefined), 1500)
 }, { immediate: true })
@@ -254,6 +254,8 @@ function badgeClass(document: Document) {
 }
 
 function progressText(id: number) {
+  const doc = documents.value.find(d => d.id === id)
+  if (doc?.total_units) return `已完成 ${doc.completed_units ?? 0}/${doc.total_units} 个单元，可先阅读`
   const p = progress[id]
   if (!p || !p.total) return '正在解析…'
   const unit = p.stage === 'slide' ? '张幻灯片' : p.stage === 'paragraph' ? '段' : UNIT_NAMES.page

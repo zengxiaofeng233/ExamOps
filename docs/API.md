@@ -6,7 +6,7 @@
 
 - **参数名**：Rust 中的 `snake_case` 参数在 `invoke` 中写成 `camelCase`（例如 `course_id` → `courseId`）；结构体参数统一放在 `input` 中，结构体字段保持 `snake_case`。
 - **错误**：所有命令返回 `Result<T, AppError>`。失败时 Promise 以一段可直接展示给学生的中文消息 reject（例如“章节不属于该课程”“AI 服务响应超时，请稍后重试…”）。前端统一用 `toast.error(e)` 展示。
-- **流式事件**：`send_message` 通过 `Channel<ChatEvent>` 推送 `started`（问题与回答占位消息）→ 多个 `delta` / `reasoning` → `done`（最终消息，含来源与用量）。`import_document`、`reprocess_document` 通过 Channel 推送解析进度。
+- **流式事件**：`send_message` 通过 `Channel<ChatEvent>` 推送 `started`（问题与回答占位消息）→ 多个 `delta` / `reasoning` → `done`（最终消息，含来源与用量）。`import_document`、`reprocess_document` 保存任务后返回 pending 状态，通过 Channel 通知入队；后台进度由 `get_documents` / `get_document` 的 `completed_units`、`total_units`、`task_error` 获取，重启后也可查询。
 - **耗时命令**（`async`）：导入与解析、AI 出题 / 批改 / 提取 / 推荐 / 建议、连接测试。它们在后台线程运行，不阻塞界面。
 - **数据隔离**：所有涉及课程的写操作都会校验引用的资料、章节、知识点、网课、学习步骤属于同一课程。
 - 本文件的命令表由 `python scripts/command_reference.py` 生成，新增命令后请重新生成。
@@ -99,8 +99,8 @@
 | `get_documents` | `courseId`: i64 | Vec<Document> | 课程的资料列表。 |
 | `get_document` | `id`: i64 | Document | 单份资料。 |
 | `get_document_content` | `id`: i64 | String | 资料全部页面拼接成的纯文本。 |
-| `import_document` | `courseId`: i64, `path`: String, `onProgress`: Channel | Document | 导入资料：复制、解析、建立章节与索引，通过 Channel 回传进度。 |
-| `reprocess_document` | `id`: i64, `onProgress`: Channel | Document | 重新解析资料（失败时保留原结果，章节引用自动迁移）。 |
+| `import_document` | `courseId`: i64, `path`: String, `onProgress`: Channel | Document | 复制资料并加入持久化后台队列；返回时不代表解析完成。 |
+| `reprocess_document` | `id`: i64, `onProgress`: Channel | Document | 加入后台重新解析队列，失败时保留原结果和章节引用。 |
 | `delete_document` | `id`: i64 | () | 删除资料及其章节、片段和图片（原文件不受影响）。 |
 | `get_document_sections` | `documentId`: i64 | Vec<Section> | 资料的章节树。 |
 | `edit_document_section` | `documentId`: i64, `sectionId`: i64, `edit`: documents::edit::SectionEdit | Vec<Section> | 手动调整章节；保留原文及已有引用，和重新解析互斥。 |
@@ -144,3 +144,13 @@
 | `save_reading_position` | `courseId`: i64, `documentId`: i64, `page`: i64 | () | 记录阅读位置（同一资料 10 分钟内只计一次阅读活动）。 |
 | `get_dashboard` | — | Vec<CourseDigest> | 首页概况：每门课程的进度、今日到期复习、未解决错题和考试倒计时。 |
 
+
+
+### 文档后台处理与页面断点
+
+- `document_jobs` 保存队列和进度，`document_page_drafts` 保存增量页面；启动时将中断任务重新排队。迁移只新增表，不改写已有资料。
+- 初次导入时 `get_document_pages` 可读取已完成的草稿页；重新解析期间继续返回上一次完整结果。章节、搜索和 AI 仍以完整解析结果为准。
+- Python `--input` 支持 `--cache-dir`、`--ocr-mode auto|cpu`。`--progress` 在 stderr 输出原有 progress 事件，以及 `{ "page_result": { "page": ..., "images": [...], "total": N } }`；stdout 保持最终协议 v2 JSON。
+- PDF 按页缓存位于资料目录 `<course>/<document>_ocr/<fingerprint>/`，以源文件、模型内容、识别模式和缓存版本校验；原子写入完整页后才能复用。Word/PPT 的图片 OCR 使用内容缓存，恢复时无需重复识别已经完成的图片。
+- 完整正文与索引最终在同一事务提交；图片目录保留备份直到事务完成，启动时恢复被中断的目录交换。锁定章节校验沿用原规则。
+- Windows 安装包使用 `onnxruntime-directml`；不能同时安装 CPU 版 `onnxruntime`。DirectML 顺序推理、禁用内存模式，失败回退 CPU；CPU 使用受内存限制的 spawn 工作进程。关闭父进程后解析器与工作进程自动退出。

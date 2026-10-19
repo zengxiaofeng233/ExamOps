@@ -2,6 +2,7 @@
 
 pub mod index;
 pub mod edit;
+pub mod jobs;
 pub mod parse;
 
 use crate::error::{AppError, AppResult, OptionalRow};
@@ -13,9 +14,9 @@ use std::{
     path::{Path, PathBuf},
 };
 
-/// Serializes imports, re-parsing and deletions (one heavy job at a time).
+/// Locks: document mutation, queue worker, and source registration, respectively.
 #[derive(Default)]
-pub struct DocumentTasks(pub tokio::sync::Mutex<()>);
+pub struct DocumentTasks(pub tokio::sync::Mutex<()>, pub tokio::sync::Mutex<()>, pub tokio::sync::Mutex<()>);
 
 pub const SUPPORTED: [&str; 6] = ["pdf", "docx", "pptx", "txt", "md", "markdown"];
 
@@ -38,6 +39,9 @@ pub struct Document {
     pub indexed_at: Option<String>,
     pub section_count: i64,
     pub image_count: i64,
+    pub completed_units: i64,
+    pub total_units: i64,
+    pub task_error: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -86,7 +90,10 @@ const SELECT: &str = "SELECT d.id, d.course_id, d.filename, d.file_type, d.file_
     d.file_size, d.status, d.created_at, c.error, d.page_count, d.loc_kind, d.char_count,
     d.structure_source, d.warnings, d.indexed_at,
     (SELECT COUNT(*) FROM document_sections s WHERE s.document_id = d.id),
-    (SELECT COUNT(*) FROM document_images i WHERE i.document_id = d.id)
+    (SELECT COUNT(*) FROM document_images i WHERE i.document_id = d.id),
+    COALESCE((SELECT completed_units FROM document_jobs j WHERE j.document_id=d.id),0),
+    COALESCE((SELECT total_units FROM document_jobs j WHERE j.document_id=d.id),0),
+    (SELECT error FROM document_jobs j WHERE j.document_id=d.id)
     FROM documents d LEFT JOIN document_contents c ON c.document_id = d.id";
 
 fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
@@ -109,6 +116,9 @@ fn from_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<Document> {
         indexed_at: row.get(14)?,
         section_count: row.get(15)?,
         image_count: row.get(16)?,
+        completed_units: row.get(17)?,
+        total_units: row.get(18)?,
+        task_error: row.get(19)?,
     })
 }
 
@@ -253,6 +263,8 @@ pub fn apply_extraction(conn: &mut Connection, id: i64, extraction: &Extraction)
         params![extraction.content, id],
     )?;
     tx.execute("UPDATE documents SET status = 'completed' WHERE id = ?1", [id])?;
+    tx.execute("UPDATE document_jobs SET state='done',error=NULL,figure_swap_committed=1 WHERE document_id=?1", [id])?;
+    tx.execute("DELETE FROM document_page_drafts WHERE document_id=?1", [id])?;
     tx.commit()?;
     get(conn, id)
 }
@@ -276,7 +288,12 @@ pub async fn process(
         fs::remove_dir_all(&staging)?;
     }
     let source = locate_copy(&paths.documents_dir, &document);
-    let result = parse::run(&source, &document.file_type, &staging, on_progress).await;
+    let cache = paths.documents_dir.join(document.course_id.to_string()).join(format!("{id}_ocr"));
+    let settings = crate::settings::load(&paths.connect()?)?;
+    let mut page_conn = paths.connect()?;
+    let result = parse::run_streaming(&source, &document.file_type, &staging, &cache,
+        if settings.ocr_gpu { "auto" } else { "cpu" }, on_progress,
+        |page| jobs::store_page(&mut page_conn, id, &page).map_err(|e| e.to_string())).await;
     let mut conn = paths.connect()?;
     match result {
         Ok(mut extraction) => {
@@ -285,27 +302,35 @@ pub async fn process(
                 restore_after_failed_reparse(&conn, id)?;
                 return Err(error);
             }
-            // Swap in the new figures, then point records at their final location.
-            if final_dir.exists() {
-                fs::remove_dir_all(&final_dir)?;
-            }
-            if staging.exists() {
-                fs::rename(&staging, &final_dir)?;
-            }
-            for image in &mut extraction.images {
-                if let Some(name) = Path::new(&image.path).file_name() {
-                    image.path = final_dir.join(name).to_string_lossy().into_owned();
+            // Keep the old figure directory until the database transaction succeeds.
+            let backup = final_dir.with_extension("old");
+            conn.execute("UPDATE document_jobs SET figure_swap_committed=0 WHERE document_id=?1", [id])?;
+            if final_dir.exists() { fs::rename(&final_dir, &backup)?; }
+            let install = (|| -> AppResult<Document> {
+                if staging.exists() { fs::rename(&staging, &final_dir)?; }
+                for image in &mut extraction.images {
+                    if let Some(name) = Path::new(&image.path).file_name() {
+                        image.path = final_dir.join(name).to_string_lossy().into_owned();
+                    }
+                }
+                apply_extraction(&mut conn, id, &extraction)
+            })();
+            match install {
+                Ok(document) => {
+                    if backup.exists() { let _ = fs::remove_dir_all(&backup); }
+                    let _ = fs::remove_dir_all(paths.cache_dir.join("pages").join(id.to_string()));
+                    Ok(document)
+                }
+                Err(error) => {
+                    if final_dir.exists() { let _ = fs::rename(&final_dir, &staging); }
+                    if backup.exists() { fs::rename(&backup, &final_dir)?; }
+                    Err(error)
                 }
             }
-            let preview_cache = paths.cache_dir.join("pages").join(id.to_string());
-            if preview_cache.exists() {
-                let _ = fs::remove_dir_all(preview_cache);
-            }
-            apply_extraction(&mut conn, id, &extraction)
         }
         Err(error) => {
-            let _ = fs::remove_dir_all(&staging);
             if keep_previous {
+                let _ = fs::remove_dir_all(&staging);
                 restore_after_failed_reparse(&conn, id)?;
                 Err(AppError::msg(format!("重新解析失败，已保留原有结果：{error}")))
             } else {
@@ -392,6 +417,7 @@ pub fn pages(conn: &Connection, document_id: i64, start: i64, end: i64) -> AppRe
     if end < start || end - start > 400 {
         return Err(AppError::invalid("一次最多读取 400 个单元"));
     }
+    let document = get(conn, document_id)?;
     let mut images: std::collections::HashMap<i64, Vec<ImageInfo>> = std::collections::HashMap::new();
     {
         let mut stmt = conn.prepare(
@@ -412,6 +438,12 @@ pub fn pages(conn: &Connection, document_id: i64, start: i64, end: i64) -> AppRe
             let image = image?;
             images.entry(image.page_number).or_default().push(image);
         }
+    }
+    if document.indexed_at.is_none() && document.status != "completed" {
+        return Ok(jobs::draft_pages(conn, document_id, start, end)?.into_iter().map(|p| PageView {
+            page_number: p.number, label: p.label, loc_start: p.loc_start, loc_end: p.loc_end,
+            blocks: p.blocks, has_ocr: p.ocr, width: p.width, height: p.height, images: images.remove(&p.number).unwrap_or_default(),
+        }).collect());
     }
     let mut stmt = conn.prepare(
         "SELECT page_number, label, loc_start, loc_end, blocks, has_ocr, width, height FROM document_pages
@@ -472,9 +504,11 @@ pub fn delete_document(conn: &mut Connection, paths: &crate::database::AppPaths,
         fs::remove_file(&copy)?;
     }
     let figures = figures_dir(&paths.documents_dir, document.course_id, id);
-    if figures.exists() {
-        fs::remove_dir_all(figures)?;
+    for directory in [&figures, &figures.with_extension("new"), &figures.with_extension("old")] {
+        if directory.exists() { fs::remove_dir_all(directory)?; }
     }
+    let checkpoint = paths.documents_dir.join(document.course_id.to_string()).join(format!("{id}_ocr"));
+    if checkpoint.exists() { fs::remove_dir_all(checkpoint)?; }
     let previews = paths.cache_dir.join("pages").join(id.to_string());
     if previews.exists() {
         let _ = fs::remove_dir_all(previews);
@@ -517,7 +551,7 @@ pub async fn page_preview(
     if document.file_type != "pdf" {
         return Err(AppError::invalid("只有 PDF 支持原页面预览"));
     }
-    if page < 1 || page > document.page_count.max(1) {
+    if page < 1 || page > document.page_count.max(document.total_units).max(1) {
         return Err(AppError::invalid("页码超出范围"));
     }
     let dir = paths.cache_dir.join("pages").join(document_id.to_string());

@@ -52,6 +52,11 @@ pub const MIGRATIONS: &[Migration] = &[
         name: "document_analysis",
         sql: include_str!("../../migrations/0007_document_analysis.sql"),
     },
+    Migration {
+        version: 8,
+        name: "document_jobs",
+        sql: include_str!("../../migrations/0008_document_jobs.sql"),
+    },
 ];
 
 pub fn latest_version() -> u32 {
@@ -166,7 +171,7 @@ mod tests {
             INSERT INTO documents (course_id, filename, file_type, file_path, file_size) VALUES (1, 'a.pdf', 'pdf', 'a.pdf', 1);
             INSERT INTO document_sections (document_id, ordinal, level, title, page_start, page_end) VALUES (1, 0, 1, '原章节', 1, 2);
             INSERT INTO document_pages (document_id, page_number, loc_start, loc_end, blocks) VALUES (1, 1, 1, 1, '[{\"text\":\"x²≠α\"}]');").unwrap();
-        assert_eq!(migrate(&mut conn).unwrap(), vec![7]);
+        assert_eq!(migrate(&mut conn).unwrap(), vec![7, 8]);
         let section: (String, i64, i64) = conn.query_row("SELECT title, block_start, block_end FROM document_sections WHERE id = 1", [], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?))).unwrap();
         assert_eq!(section, ("原章节".into(), 0, 2147483647));
         let blocks: String = conn.query_row("SELECT blocks FROM document_pages", [], |r| r.get(0)).unwrap();

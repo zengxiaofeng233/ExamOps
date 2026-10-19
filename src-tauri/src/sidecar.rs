@@ -28,6 +28,7 @@ pub fn command() -> Result<tokio::process::Command, String> {
     let executable = parser_executable()?;
     let mut command = tokio::process::Command::new(executable);
     command.kill_on_drop(true);
+    command.arg("--parent-pid").arg(std::process::id().to_string());
     #[cfg(windows)]
     command.creation_flags(0x08000000); // CREATE_NO_WINDOW
     Ok(command)

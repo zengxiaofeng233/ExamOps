@@ -376,7 +376,7 @@ SOFTWARE.
 | vue-demi | 0.14.10 | MIT |
 | vue-router | 4.6.4 | MIT |
 
-## 文档处理组件中的 Python 包（28 个）
+## 文档处理组件中的 Python 包（31 个）
 
 标注 MPL-2.0 的组件未经修改，其源代码可从 PyPI 获取。
 
@@ -391,13 +391,15 @@ SOFTWARE.
 | flatbuffers | 25.12.19 | Apache Software License |
 | idna | 3.20 | BSD-3-Clause |
 | lxml | 6.1.3 | BSD-3-Clause |
+| mpmath | 1.3.0 | BSD License |
 | numpy | 2.5.4 | BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0 |
 | omegaconf | 2.4.0 | BSD License |
-| onnxruntime | 1.31.0 | MIT License |
+| onnxruntime-directml | 1.24.4 | MIT License |
 | opencv-python-headless | 5.0.0.93 | Apache Software License |
 | packaging | 26.3 | Apache-2.0 OR BSD-2-Clause |
 | pillow | 11.1.0 | CMU License (MIT-CMU) |
 | protobuf | 7.36.2 | 3-Clause BSD License |
+| psutil | 7.2.2 | BSD-3-Clause |
 | pyclipper | 1.4.0 | OSI Approved, MIT License |
 | pypdfium2 | 5.6.0 | BSD-3-Clause, Apache-2.0, dependency licenses |
 | python-docx | 1.1.2 | MIT License |
@@ -406,6 +408,7 @@ SOFTWARE.
 | requests | 2.34.2 | Apache Software License |
 | shapely | 2.2.0 | BSD-3-Clause |
 | six | 1.17.0 | MIT License |
+| sympy | 1.14.0 | BSD License |
 | tqdm | 4.70.1 | MPL-2.0 AND MIT |
 | typing_extensions | 4.16.0 | PSF-2.0 |
 | urllib3 | 2.8.0 | MIT |

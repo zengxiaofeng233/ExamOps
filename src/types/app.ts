@@ -21,6 +21,7 @@ export interface QuizSettings {
 
 export interface AppSettings {
   restore_last_location: boolean
+  ocr_gpu: boolean
   context: ContextSettings
   quiz: QuizSettings
 }

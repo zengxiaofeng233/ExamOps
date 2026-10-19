@@ -22,32 +22,58 @@ class DocumentError(ValueError):
 
 
 class Ocr:
-    def __init__(self):
+    def __init__(self, mode="auto", cache_dir=None):
         self.engine = None
+        self.mode = mode
+        self.active_mode = None
+        self.confidence = 1.0
+        self.cache_dir = Path(cache_dir) / "images" if cache_dir else None
 
     def lines(self, image):
+        from ocr_runtime import make_engine, provider_for
         if self.engine is None:
-            import rapidocr
-            from rapidocr import RapidOCR
-
-            models = Path(rapidocr.__file__).parent / "models"
-            self.engine = RapidOCR(params={
-                "Global.log_level": "error",
-                "Det.model_path": str(models / "PP-OCRv6_det_small.onnx"),
-                "Cls.model_path": str(models / "ch_ppocr_mobile_v2.0_cls_mobile.onnx"),
-                "Rec.model_path": str(models / "PP-OCRv6_rec_small.onnx"),
-                "EngineConfig.onnxruntime.intra_op_num_threads": 2,
-                "EngineConfig.onnxruntime.inter_op_num_threads": 1,
-            })
-        result = self.engine(image)
+            self.active_mode = provider_for(self.mode)
+            try:
+                self.engine = make_engine(self.active_mode)
+            except Exception:
+                if self.active_mode == "cpu":
+                    raise
+                self.active_mode = "cpu"
+                self.engine = make_engine("cpu")
+        try:
+            result = self.engine(image)
+        except Exception:
+            if self.active_mode == "cpu":
+                raise
+            self.active_mode = "cpu"
+            self.engine = make_engine("cpu")
+            result = self.engine(image)
+        scores = getattr(result, "scores", None)
+        self.confidence = sum(scores) / len(scores) if scores is not None and len(scores) else 0
         if result.txts is None:
             return []
         return list(zip(result.boxes, result.txts))
 
     def image_text(self, blob):
         from PIL import Image
+        import hashlib
+        from checkpoints import atomic_json, SCHEMA, model_fingerprint
+        target = None
+        if self.cache_dir:
+            key = hashlib.sha256(blob + f"{SCHEMA}:{self.mode}:{model_fingerprint()}".encode()).hexdigest()
+            target = self.cache_dir / f"{key}.json"
+            try:
+                cached = json.loads(target.read_text(encoding="utf-8"))
+                if isinstance(cached, str):
+                    return cached
+            except (OSError, ValueError):
+                pass
         with Image.open(BytesIO(blob)) as image:
-            return "\n".join(text for _, text in self.lines(image.convert("RGB")))
+            with image.convert("RGB") as rgb:
+                text = "\n".join(text for _, text in self.lines(rgb))
+        if target:
+            atomic_json(target, text)
+        return text
 
 
 class Progress:
@@ -60,6 +86,11 @@ class Progress:
         if self.enabled:
             print(json.dumps({"progress": {"stage": stage, "current": current, "total": total}}),
                   file=sys.stderr, flush=True)
+
+    def page(self, unit, images, total):
+        if self.enabled:
+            print(json.dumps({"page_result": {"page": unit.to_json(), "images": images, "total": total}},
+                             ensure_ascii=False), file=sys.stderr, flush=True)
 
 
 def normalized(text):
@@ -140,69 +171,9 @@ def _native_blocks(textpage):
     return blocks
 
 
-def parse_pdf(path, ocr, figures, progress):
-    import pypdfium2 as pdfium
-    import pypdfium2.raw as raw
-
-    units = []
-    try:
-        pdf = pdfium.PdfDocument(path)
-    except pdfium.PdfiumError as error:
-        if "password" in str(error).lower():
-            raise DocumentError("PDF 已加密，请先在其他软件中解除密码保护后再导入") from error
-        raise DocumentError(f"无法打开 PDF（文件可能已损坏）：{error}") from error
-    with pdf:
-        total = len(pdf)
-        toc = _read_toc(pdf)
-        for number in range(total):
-            progress(number + 1, total)
-            with closing(pdf[number]) as page, closing(page.get_textpage()) as textpage:
-                blocks = _native_blocks(textpage)
-                native = '\n'.join(b.text for b in blocks)
-                extra = []
-                has_images = any(page.get_objects(filter=[raw.FPDF_PAGEOBJ_IMAGE]))
-                if has_images or not native or unicode_issues(native):
-                    # Render one page at a time; coordinates account for rotation/crop boxes.
-                    scale = min(2.5, 3000 / max(page.get_size()))
-                    with closing(page.render(scale=scale)) as bitmap:
-                        conversion = bitmap.get_posconv(page)
-                        image = bitmap.to_pil()
-                        try:
-                            for box, text in ocr.lines(image):
-                                points = [conversion.to_page(round(x), round(y)) for x, y in box]
-                                xs, ys = zip(*points)
-                                covered = textpage.get_text_bounded(
-                                    min(xs) - 2, min(ys) - 2, max(xs) + 2, max(ys) + 2
-                                )
-                                # Only deduplicate text from the SAME location, not equal
-                                # phrases elsewhere in the page or on another page.
-                                if same_text(text, covered):
-                                    continue
-                                extra.append(Block(text, kind="ocr", size=max(ys) - min(ys),
-                                                   bbox=[min(xs), min(ys), max(xs), max(ys)]))
-                        finally:
-                            image.close()
-                if has_images:
-                    figures.extract_pdf_page(page, number + 1)
-                blocks.extend(block for block in extra if block.text.strip())
-                width, height = page.get_size()
-                # Sort in display space, including the PDF's rotation/crop box;
-                # retain source boxes in PDF canvas coordinates for provenance.
-                display = pdfium.PdfPosConv(page, (0, 0, round(width * 4), round(height * 4), 0))
-                def reading_key(block):
-                    if not block.bbox:
-                        return (float('inf'), 0)
-                    left, bottom, right, top = block.bbox
-                    points = [display.to_bitmap(x, y) for x in (left, right) for y in (bottom, top)]
-                    return (min(y for _, y in points), min(x for x, _ in points))
-                blocks.sort(key=reading_key)
-                units.append(Unit(number + 1, f"第 {number + 1} 页", blocks, round(width, 1),
-                                  round(height, 1), ocr=bool(extra),
-                                  meta={"rotation": page.get_rotation(), "canvas": page.get_bbox()}))
-    source = chapters.detect(units, "pdf", toc)
-    for unit in units:
-        merge_lines(unit)
-    return units, source, "page"
+def parse_pdf(path, ocr, figures, progress, cache_dir=None):
+    from pdf_pipeline import parse_pdf as run
+    return run(path, ocr, figures, progress, cache_dir)
 
 
 TERMINAL = tuple("。！？；：.!?;:」』”）)")
@@ -306,6 +277,8 @@ def parse_docx(path, ocr, figures, progress):
         level = _docx_heading_level(paragraph, qn, style_names) if text and "\n" not in text else None
         units.append(Unit(number, f"第 {number} 段", [Block(text or "（图片）", heading=level,
                                                             source="styles" if level else None)]))
+        if hasattr(progress, "page"):
+            progress.page(units[-1], [i for i in figures.items if i["page"] == number], len(paragraphs))
     source = chapters.detect(units, "docx")
     return units, source, "paragraph"
 
@@ -387,6 +360,8 @@ def parse_pptx(path, ocr, figures, progress):
         blocks.extend(b for b in body if b.text.strip())
         units.append(Unit(number, f"第 {number} 张幻灯片", blocks,
                           meta={"layout": slide.slide_layout.name or ""}))
+        if hasattr(progress, "page"):
+            progress.page(units[-1], [i for i in figures.items if i["page"] == number], len(slides))
     source = chapters.detect(units, "pptx")
     return units, source, "slide"
 
@@ -432,6 +407,8 @@ def parse_text(path, markdown, progress, max_lines=40):
             units.append(Unit(number, label, [Block(text, heading=heading,
                                                     source="markdown" if heading else None)],
                               loc_start=first, loc_end=last))
+            if hasattr(progress, "page"):
+                progress.page(units[-1], [], 0)
         current = []
 
     in_fence = False
@@ -489,14 +466,14 @@ def plain_text(units, loc_kind):
     return ("\n\n" if loc_kind in ("page", "slide", "line") else "\n").join(sections)
 
 
-def parse_structured(path, figures_dir=None, progress=None):
+def parse_structured(path, figures_dir=None, progress=None, cache_dir=None, ocr_mode="auto"):
     path = Path(path)
-    ocr = Ocr()
+    ocr = Ocr(ocr_mode, cache_dir)
     figures = Figures(figures_dir)
     progress = progress or Progress(False)
     suffix = path.suffix.lower()
     if suffix == ".pdf":
-        units, source, loc_kind = parse_pdf(path, ocr, figures, progress)
+        units, source, loc_kind = parse_pdf(path, ocr, figures, progress, cache_dir)
     elif suffix == ".docx":
         units, source, loc_kind = parse_docx(path, ocr, figures, progress)
     elif suffix == ".pptx":

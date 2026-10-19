@@ -1,5 +1,6 @@
 import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from 'vitest'
-import { createApp, nextTick, type App } from 'vue'
+import { createApp, h, nextTick, reactive, type App } from 'vue'
+import type { Document } from '@/types/document'
 import DocumentReader from '../DocumentReader.vue'
 import { DocumentService } from '@/services/document'
 
@@ -14,6 +15,34 @@ afterAll(() => { HTMLElement.prototype.scrollTo = originalScroll })
 afterEach(() => { app?.unmount(); document.body.innerHTML = ''; vi.resetAllMocks() })
 
 describe('reader source fidelity and section boundaries', () => {
+  it('reads completed draft pages before completion and opens chapters only after completion', async () => {
+    const doc = reactive<Document>({
+      id: 1, course_id: 1, filename: '扫描资料.pdf', file_type: 'pdf', file_path: '', file_size: 1,
+      status: 'processing', created_at: '', page_count: 0, loc_kind: 'page', char_count: 0,
+      structure_source: '', warnings: [], indexed_at: null, section_count: 0, image_count: 0,
+      completed_units: 1, total_units: 3
+    })
+    vi.mocked(DocumentService.pages).mockResolvedValue([{
+      page_number: 1, label: '第 1 页', loc_start: 1, loc_end: 1, width: 600, height: 800, has_ocr: true, images: [],
+      blocks: [{ text: '已经识别的正文', kind: 'ocr', heading: null }]
+    }])
+    vi.mocked(DocumentService.sections).mockResolvedValue([{
+      id: 1, document_id: 1, parent_id: null, ordinal: 0, level: 1, title: '最终章节',
+      page_start: 1, page_end: 3, char_count: 8, loc_label: '第 1–3 页'
+    }])
+    const host = document.createElement('div'); document.body.append(host)
+    app = createApp({ setup: () => () => h(DocumentReader, { document: doc, courseId: 1 }) })
+    app.component('RouterLink', { template: '<a><slot /></a>' })
+    app.mount(host)
+    await vi.waitFor(() => expect(host.textContent).toContain('已经识别的正文'))
+    expect(DocumentService.sections).not.toHaveBeenCalled()
+    expect(host.textContent).toContain('整份解析完成后开放')
+    expect(host.querySelector('a')).toBeNull()
+    expect(host.querySelector('button')?.disabled).toBe(true)
+    doc.status = 'completed'; doc.indexed_at = 'now'; doc.page_count = 3
+    await vi.waitFor(() => expect(host.textContent).toContain('最终章节'))
+    expect(host.textContent).toContain('AI 讲解')
+  })
   it('shows only the selected section on a shared page and exposes unmodified formula text', async () => {
     vi.mocked(DocumentService.sections).mockResolvedValue([
       { id: 1, document_id: 1, parent_id: null, ordinal: 0, level: 1, title: '甲章', page_start: 1, page_end: 1, block_start: 0, block_end: 1, char_count: 20, loc_label: '第 1 页' },

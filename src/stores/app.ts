@@ -5,6 +5,7 @@ import { AppService } from '@/services/app'
 
 const DEFAULTS: AppSettings = {
   restore_last_location: true,
+  ocr_gpu: true,
   context: { mode: 'auto', rag_top_k: 8, full_ratio: 0.8, history_turns: 6 },
   quiz: { trigger: 'chapter', question_count: 5, allow_skip: true, kinds: ['single_choice', 'true_false', 'short_answer', 'recall', 'scenario'] }
 }

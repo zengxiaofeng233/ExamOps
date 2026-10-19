@@ -31,6 +31,14 @@
                 </span>
               </label>
             </section>
+            <section class="card p-5">
+              <h2 class="section-title">资料识别</h2>
+              <label class="mt-3 flex items-start gap-3">
+                <input v-model="form.ocr_gpu" type="checkbox" class="mt-1 size-4 accent-indigo-600" @change="save" />
+                <span><span class="block text-sm font-medium text-slate-800">使用显卡加速</span>
+                  <span class="block text-xs text-slate-500">支持时使用本地显卡，不可用时自动使用 CPU。下次解析生效。</span></span>
+              </label>
+            </section>
           </template>
 
           <template v-else-if="active === 'study'">
@@ -244,7 +252,7 @@ onMounted(async () => {
 async function save() {
   try {
     // Only this page's fields; the model page saves the context settings itself.
-    const next = { ...clone(app.settings), restore_last_location: form.restore_last_location, quiz: clone(form.quiz) }
+    const next = { ...clone(app.settings), restore_last_location: form.restore_last_location, ocr_gpu: form.ocr_gpu, quiz: clone(form.quiz) }
     Object.assign(form, clone(await app.save(next)))
     toast.success('设置已保存')
   } catch (e) {

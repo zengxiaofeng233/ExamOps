@@ -73,13 +73,15 @@ impl Default for QuizSettings {
 pub struct AppSettings {
     /// Re-open the page the user was on when the app was closed.
     pub restore_last_location: bool,
+    /// Try local DirectML acceleration; fall back to CPU if unavailable.
+    pub ocr_gpu: bool,
     pub context: ContextSettings,
     pub quiz: QuizSettings,
 }
 
 impl Default for AppSettings {
     fn default() -> Self {
-        AppSettings { restore_last_location: true, context: ContextSettings::default(), quiz: QuizSettings::default() }
+        AppSettings { restore_last_location: true, ocr_gpu: true, context: ContextSettings::default(), quiz: QuizSettings::default() }
     }
 }
 

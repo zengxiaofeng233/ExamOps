@@ -66,62 +66,56 @@ pub fn get_document_content(app_handle: AppHandle, id: i64) -> AppResult<String>
     documents::body(&conn, id)
 }
 
-/// 导入资料：复制、解析、建立章节与索引，通过 Channel 回传进度。
+/// 保存资料并加入持久化后台队列，Channel 通知入队；进度从资料状态查询。
 #[tauri::command]
 pub async fn import_document(
+    app_handle: AppHandle,
     paths: State<'_, AppPaths>,
     tasks: State<'_, DocumentTasks>,
     course_id: i64,
     path: String,
     on_progress: Channel<ImportProgress>,
 ) -> AppResult<Document> {
-    let _guard = tasks.0.lock().await;
+    let _registration = tasks.2.lock().await;
     let paths = paths.inner().clone();
-    let staging_paths = paths.clone();
     let document = tauri::async_runtime::spawn_blocking(move || {
-        let mut conn = staging_paths.connect()?;
-        documents::prepare(&mut conn, &staging_paths.documents_dir, course_id, &PathBuf::from(path))
-    })
-    .await??;
-    if document.status == "failed" {
-        return Ok(document);
-    }
-    let id = document.id;
-    documents::process(&paths, id, false, move |p| {
-        let _ = on_progress.send(ImportProgress { document_id: id, stage: p.stage, current: p.current, total: p.total });
-    })
-    .await
+        let mut conn = paths.connect()?;
+        let document = documents::prepare(&mut conn, &paths.documents_dir, course_id, &PathBuf::from(path))?;
+        if document.status != "failed" { documents::jobs::enqueue(&mut conn, document.id, false)?; }
+        documents::get(&conn, document.id)
+    }).await??;
+    let _ = on_progress.send(ImportProgress { document_id: document.id, stage: "queued".into(), current: 0, total: 0 });
+    documents::jobs::start(app_handle);
+    Ok(document)
 }
 
-/// 重新解析资料（失败时保留原结果，章节引用自动迁移）。
+/// Queue a re-parse without replacing the previously usable result.
 #[tauri::command]
 pub async fn reprocess_document(
+    app_handle: AppHandle,
     paths: State<'_, AppPaths>,
     tasks: State<'_, DocumentTasks>,
     id: i64,
     on_progress: Channel<ImportProgress>,
 ) -> AppResult<Document> {
-    let _guard = tasks.0.lock().await;
-    let paths = paths.inner().clone();
-    let previous = {
-        let conn = paths.connect()?;
-        let document = documents::get(&conn, id)?;
-        if !documents::locate_copy(&paths.documents_dir, &document).is_file() {
-            return Err(AppError::msg("应用内的资料副本已丢失，请删除后重新导入"));
-        }
-        documents::mark_processing(&conn, id)?;
-        document
-    };
-    documents::process(&paths, id, previous.status == "completed", move |p| {
-        let _ = on_progress.send(ImportProgress { document_id: id, stage: p.stage, current: p.current, total: p.total });
-    })
-    .await
+    let _registration = tasks.2.lock().await;
+    let mut conn = paths.connect()?;
+    let document = documents::get(&conn,id)?;
+    if !documents::locate_copy(&paths.documents_dir,&document).is_file() {
+        return Err(AppError::msg("应用内的资料副本已丢失，请删除后重新导入"));
+    }
+    documents::jobs::enqueue(&mut conn,id,document.indexed_at.is_some())?;
+    let queued = documents::get(&conn,id)?;
+    let _ = on_progress.send(ImportProgress { document_id: id, stage: "queued".into(), current: 0, total: 0 });
+    documents::jobs::start(app_handle);
+    Ok(queued)
 }
 
 /// 删除资料及其章节、片段和图片（原文件不受影响）。
 #[tauri::command]
 pub async fn delete_document(paths: State<'_, AppPaths>, tasks: State<'_, DocumentTasks>, id: i64) -> AppResult<()> {
     let _guard = tasks.0.lock().await;
+    let _registration = tasks.2.lock().await;
     let paths = paths.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         let mut conn = paths.connect()?;
@@ -144,6 +138,7 @@ pub async fn edit_document_section(
     document_id: i64, section_id: i64, edit: documents::edit::SectionEdit,
 ) -> AppResult<Vec<Section>> {
     let _guard = tasks.0.lock().await;
+    let _registration = tasks.2.lock().await;
     let paths = paths.inner().clone();
     tauri::async_runtime::spawn_blocking(move || {
         documents::edit::apply(&mut paths.connect()?, document_id, section_id, edit)

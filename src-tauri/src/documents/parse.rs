@@ -45,7 +45,7 @@ pub struct ParsedPage {
     pub blocks: Vec<ParsedBlock>,
 }
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ParsedImage {
     pub page: i64,
     pub ordinal: i64,
@@ -93,6 +93,16 @@ pub struct ParseProgress {
     pub current: u64,
     pub total: u64,
 }
+
+#[derive(Debug, Deserialize)]
+pub struct PageResult {
+    pub page: ParsedPage,
+    pub total: u64,
+    #[serde(default)]
+    pub images: Vec<ParsedImage>,
+}
+#[derive(Deserialize)]
+struct PageLine { page_result: PageResult }
 
 #[derive(Deserialize)]
 struct ProgressLine {
@@ -220,11 +230,14 @@ fn decode(stdout: &[u8], file_type: &str) -> Result<Extraction, String> {
 
 /// Runs the processor on `source`, saving figures into `figures_dir`.
 /// `on_progress` receives page/slide progress while the file is processed.
-pub async fn run(
+pub async fn run_streaming(
     source: &Path,
     file_type: &str,
     figures_dir: &Path,
+    cache_dir: &Path,
+    ocr_mode: &str,
     mut on_progress: impl FnMut(ParseProgress) + Send,
+    mut on_page: impl FnMut(PageResult) -> Result<(), String> + Send,
 ) -> Result<Extraction, String> {
     let mut command = crate::sidecar::command()?;
     command
@@ -233,6 +246,8 @@ pub async fn run(
         .arg("--figures-dir")
         .arg(figures_dir)
         .arg("--progress")
+        .arg("--cache-dir").arg(cache_dir)
+        .arg("--ocr-mode").arg(ocr_mode)
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
@@ -248,6 +263,14 @@ pub async fn run(
     let mut lines = BufReader::new(stderr).lines();
     let mut diagnostics: Vec<String> = Vec::new();
     while let Ok(Some(line)) = lines.next_line().await {
+        if let Ok(page) = serde_json::from_str::<PageLine>(&line) {
+            if let Err(error) = on_page(page.page_result) {
+                let _ = child.kill().await;
+                reader.abort();
+                return Err(format!("保存页面失败：{error}"));
+            }
+            continue;
+        }
         match serde_json::from_str::<ProgressLine>(&line) {
             Ok(ProgressLine { progress }) => on_progress(progress),
             Err(_) => {

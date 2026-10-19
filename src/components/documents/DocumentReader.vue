@@ -17,29 +17,32 @@
           </p>
         </div>
         <div class="flex shrink-0 gap-1.5">
-          <button class="btn btn-secondary btn-sm" :disabled="busy || editing" @click="emit('reprocess')">
+          <button class="btn btn-secondary btn-sm" :disabled="busy || editing || document.status === 'pending' || document.status === 'processing'" @click="emit('reprocess')">
             <ArrowPathIcon class="size-3.5" />重新解析
           </button>
-          <button class="btn btn-ghost btn-sm text-rose-600 hover:text-rose-700" :disabled="busy || editing" @click="emit('delete')">删除</button>
+          <button class="btn btn-ghost btn-sm text-rose-600 hover:text-rose-700" :disabled="busy || editing || document.status === 'pending' || document.status === 'processing'" @click="emit('delete')">删除</button>
         </div>
       </div>
+      <p v-if="document.indexed_at && document.status !== 'completed'" class="mt-2 text-xs text-slate-500">正在重新解析，当前显示上次完成的内容。</p>
+      <p v-if="document.task_error && document.indexed_at" class="mt-2 text-xs text-rose-700" role="alert">{{ document.task_error }}</p>
       <ul v-if="document.warnings.length" class="mt-2 space-y-1">
         <li v-for="warning in document.warnings" :key="warning" class="rounded-md bg-amber-50 px-3 py-1.5 text-xs text-amber-800">{{ warning }}</li>
       </ul>
     </header>
 
-    <div v-if="document.status === 'failed'" class="p-6">
+    <PartialDocumentReader v-if="document.status !== 'completed' && !document.indexed_at" :document="document" />
+    <div v-else-if="document.status === 'failed'" class="p-6">
       <div class="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-800" role="alert">
         <p class="font-medium">解析失败</p>
         <p class="mt-1 break-words whitespace-pre-wrap">{{ document.error || '请检查文件后点击“重新解析”或重新导入。' }}</p>
       </div>
     </div>
-    <div v-else-if="document.status !== 'completed'" class="p-6 text-sm text-slate-500">正在解析，扫描资料可能需要较长时间…</div>
+
 
     <div v-else class="flex min-h-0 flex-1">
       <aside class="w-56 shrink-0 overflow-y-auto border-r border-slate-200 bg-surface p-2 xl:w-64">
         <p v-if="loadingSections" class="p-3 text-sm text-slate-400">加载目录…</p>
-        <SectionTree v-else :sections="sections" :active-id="active?.id" editable :busy="busy || editing" @select="(s) => selectSection(s)" @edit="editSection" @split="(section, title) => (splitting = { section, title })" />
+        <SectionTree v-else :sections="sections" :active-id="active?.id" :editable="document.status === 'completed'" :busy="busy || editing || document.status !== 'completed'" @select="(s) => selectSection(s)" @edit="editSection" @split="(section, title) => (splitting = { section, title })" />
         <p v-if="editError" role="alert" class="p-2 text-xs text-rose-600">{{ editError }}</p>
       </aside>
 
@@ -58,7 +61,7 @@
           <label v-if="document.file_type === 'pdf'" class="flex items-center gap-1.5 text-xs text-slate-600">
             <input v-model="previewAll" type="checkbox" class="accent-indigo-600" />显示原页面
           </label>
-          <div v-if="courseId" class="flex gap-1">
+          <div v-if="courseId && document.status === 'completed'" class="flex gap-1">
             <RouterLink
               :to="{ name: 'learn', params: { id: courseId }, query: { mode: 'learn', section: active.id } }"
               class="btn btn-soft btn-sm"
@@ -127,6 +130,7 @@
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { AcademicCapIcon, ArrowPathIcon, ChevronLeftIcon, ChevronRightIcon, PencilSquareIcon } from '@heroicons/vue/20/solid'
 import SectionTree from './SectionTree.vue'
+import PartialDocumentReader from './PartialDocumentReader.vue'
 import PageCard from './PageCard.vue'
 import ImageViewer from './ImageViewer.vue'
 import { DocumentService } from '@/services/document'
@@ -299,7 +303,7 @@ watch(() => [props.document.id, props.document.indexed_at, props.document.status
   editError.value = ''
   pages.value = []
   active.value = null
-  if (props.document.status !== 'completed') return
+  if (props.document.status !== 'completed' && !props.document.indexed_at) return
   await loadSections()
   openPage(props.page)
 }, { immediate: true })

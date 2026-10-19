@@ -67,6 +67,7 @@ fn main() {
                 let _ = tutor::recover_interrupted(&conn);
             }
             app.manage(paths);
+            documents::jobs::start(app.handle().clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![

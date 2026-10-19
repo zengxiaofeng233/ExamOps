@@ -34,13 +34,15 @@ export const useDocumentTasksStore = defineStore('documentTasks', () => {
     if (task.importing || !files.length) return
     task.importing = true
     let failures = 0
+    let queued = 0
     const errors: string[] = []
     try {
       for (let index = 0; index < files.length; index++) {
         const filename = files[index].split(/[\\/]/).pop()
-        task.importStatus = `正在导入 ${index + 1}/${files.length}：${filename}（扫描页需要 OCR，请稍候）`
+        task.importStatus = `正在导入 ${index + 1}/${files.length}：${filename}（正在保存资料）`
         try {
           const document = await DocumentService.import(courseId, files[index], onProgress)
+          if (document.status === 'pending' || document.status === 'processing') queued++
           if (document.status === 'failed') {
             failures++
             errors.push(`${filename}：${document.error ?? '解析失败'}`)
@@ -55,7 +57,7 @@ export const useDocumentTasksStore = defineStore('documentTasks', () => {
         }
       }
       if (failures) toast.error(`导入完成：${files.length - failures} 个成功，${failures} 个失败。\n${errors.join('\n')}`)
-      else toast.success(`已导入 ${files.length} 份资料`)
+      else toast.success(queued ? `已添加 ${files.length} 份资料，正在后台解析` : `已导入 ${files.length} 份资料`)
     } finally {
       task.importStatus = ''
       task.importing = false
@@ -69,7 +71,7 @@ export const useDocumentTasksStore = defineStore('documentTasks', () => {
     try {
       const document = await DocumentService.reprocess(id, onProgress)
       if (document.status === 'failed') toast.error(document.error ?? '解析失败')
-      else toast.success('已重新解析')
+      else toast.success(document.status === 'completed' ? '已重新解析' : '已加入后台解析队列')
     } catch (e) {
       toast.error(e)
     } finally {

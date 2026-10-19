@@ -34,7 +34,7 @@ def handle_command(command: str, data: Dict[str, Any], progress=None) -> Dict[st
 
     if command == "parse_structured":
         from parser import parse_structured
-        result = parse_structured(data["path"], data.get("figures_dir"), progress)
+        result = parse_structured(data["path"], data.get("figures_dir"), progress, data.get("cache_dir"), data.get("ocr_mode", "auto"))
         return {"status": "success", "version": PROTOCOL_VERSION, **result}
 
     if command == "render_pages":
@@ -53,19 +53,25 @@ def main():
     sys.stderr.reconfigure(encoding="utf-8")
     args = argparse.ArgumentParser()
     args.add_argument("--input")
+    args.add_argument("--parent-pid", type=int)
     args.add_argument("--figures-dir")
     args.add_argument("--progress", action="store_true")
+    args.add_argument("--cache-dir")
+    args.add_argument("--ocr-mode", choices=["auto", "cpu"], default="auto")
     args.add_argument("--render")
     args.add_argument("--pages", default="")
     args.add_argument("--out-dir")
     args.add_argument("--width", type=int, default=1200)
     options = args.parse_args()
+    if options.parent_pid:
+        from ocr_runtime import watch_parent
+        watch_parent(options.parent_pid)
 
     if options.input or options.render:
         from parser import Progress
         try:
             if options.input:
-                result = handle_command("parse_structured", {"path": options.input, "figures_dir": options.figures_dir},
+                result = handle_command("parse_structured", {"path": options.input, "figures_dir": options.figures_dir, "cache_dir": options.cache_dir, "ocr_mode": options.ocr_mode},
                                         Progress(options.progress))
             else:
                 pages = [int(p) for p in options.pages.split(",") if p.strip()]
@@ -93,4 +99,6 @@ def main():
 
 
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     main()
