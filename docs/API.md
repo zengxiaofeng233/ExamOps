@@ -46,6 +46,8 @@
 | `update_app_settings` | `settings`: AppSettings | AppSettings | 保存应用设置（数值会被校正到允许范围）。 |
 | `get_app_info` | — | AppInfo | 版本、数据目录、数据库与资料占用、数据库结构版本。 |
 | `check_for_updates` | — | Option<AvailableUpdate> | 检查 GitHub 正式 Release，仅返回版本号更高且包含 Windows x64 安装包的版本；不下载或安装。 |
+| `download_update` | `version`: String, `onProgress`: Channel<DownloadProgress> | () | 重新确认正式版本，下载对应签名包；推送 downloaded/total 字节进度，校验成功后暂存在进程内，不自动安装。 |
+| `install_update` | — | () | 安装已校验的更新包；资料处理期间拒绝安装，成功启动安装程序后退出，由安装程序重新打开应用。 |
 | `open_data_dir` | — | () | 在资源管理器中打开数据目录。 |
 | `open_external_url` | `url`: String | () | 在系统浏览器中打开 http(s) 链接（AI 回答中的链接、网课）。 |
 | `save_last_location` | `location`: LastLocation | () | 记住当前页面（下次启动时恢复）。 |

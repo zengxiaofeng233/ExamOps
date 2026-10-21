@@ -110,16 +110,16 @@
             <section class="card p-5" aria-labelledby="update-heading">
               <div class="flex flex-wrap items-center justify-between gap-3">
                 <h2 id="update-heading" class="section-title">软件更新</h2>
-                <button type="button" class="btn btn-secondary" :disabled="updates.checking" @click="updates.check">
+                <button type="button" class="btn btn-secondary" :disabled="updates.checking || updates.phase !== 'idle'" @click="updates.check">
                   {{ updates.checking ? '正在检查…' : '检查更新' }}
                 </button>
               </div>
-              <p class="mt-2 text-sm text-slate-500">每次启动后台检查 GitHub 正式版本，仅提示更新，不会自动下载或安装。</p>
+              <p class="mt-2 text-sm text-slate-500">启动时检查正式版本。点击下载后可继续使用，更新包通过签名校验后，由你选择安装并重启。</p>
               <p v-if="updates.error" class="mt-3 text-sm text-rose-600" role="alert">{{ updates.error }}</p>
               <div v-else-if="updates.available" class="mt-3 text-sm text-slate-700">
                 <p>发现新版本 v{{ updates.available.version }}（当前 v{{ updates.available.current_version }}）</p>
                 <p class="mt-1 break-all text-xs text-slate-500">{{ updates.available.asset_name }}</p>
-                <button type="button" class="btn btn-primary mt-3" @click="updates.openRelease">前往 GitHub 下载</button>
+                <UpdateActions class="mt-3" />
               </div>
               <p v-else-if="updates.checked && !updates.checking" class="mt-3 text-sm text-slate-600" role="status">未发现更新的 Windows x64 安装包。</p>
             </section>
@@ -175,6 +175,7 @@ import { open } from '@tauri-apps/plugin-dialog'
 import { useAppStore } from '@/stores/app'
 import { useToastStore } from '@/stores/toast'
 import { useUpdateStore } from '@/stores/updates'
+import UpdateActions from '@/components/layout/UpdateActions.vue'
 import { AppService } from '@/services/app'
 import type { AppInfo, AppSettings, StorageInfo } from '@/types/app'
 import { QUESTION_KIND_HINTS, QUESTION_KIND_LABELS, TRIGGER_LABELS } from '@/utils/assessment'

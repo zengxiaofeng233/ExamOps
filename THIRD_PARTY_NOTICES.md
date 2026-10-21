@@ -68,7 +68,7 @@ SOFTWARE.
 | RapidOCR / PP-OCR 模型 | 随 rapidocr 分发 | Apache-2.0 | https://github.com/RapidAI/RapidOCR |
 | KaTeX（含字体） | 随界面分发 | MIT | https://github.com/KaTeX/KaTeX |
 
-## Rust 依赖（Windows 可执行文件，255 个）
+## Rust 依赖（Windows 可执行文件，260 个）
 
 “A OR B” 表示可任选其一的双许可证。标注 MPL-2.0 的组件未经修改，其源代码可从 crates.io 获取。
 
@@ -187,6 +187,7 @@ SOFTWARE.
 | md5 | 0.7.0 | Apache-2.0 OR MIT |
 | memchr | 2.8.3 | Unlicense OR MIT |
 | mime | 0.3.17 | MIT OR Apache-2.0 |
+| minisign-verify | 0.3.0 | MIT |
 | miniz_oxide | 0.8.9 | MIT OR Zlib OR Apache-2.0 |
 | miniz_oxide | 0.9.1 | MIT OR Zlib OR Apache-2.0 |
 | mio | 1.2.4 | MIT |
@@ -221,6 +222,7 @@ SOFTWARE.
 | regex-automata | 0.4.18 | MIT OR Apache-2.0 |
 | regex-syntax | 0.8.11 | MIT OR Apache-2.0 |
 | reqwest | 0.12.28 | MIT OR Apache-2.0 |
+| reqwest | 0.13.5 | MIT OR Apache-2.0 |
 | rfd | 0.16.0 | MIT |
 | rusqlite | 0.32.1 | MIT |
 | rustc-hash | 2.1.3 | Apache-2.0 OR MIT |
@@ -265,9 +267,11 @@ SOFTWARE.
 | tauri-plugin-fs | 2.7.0 | Apache-2.0 OR MIT |
 | tauri-plugin-opener | 2.7.1 | Apache-2.0 OR MIT |
 | tauri-plugin-shell | 2.4.1 | Apache-2.0 OR MIT |
+| tauri-plugin-updater | 2.14.0 | Apache-2.0 OR MIT |
 | tauri-runtime | 2.12.1 | Apache-2.0 OR MIT |
 | tauri-runtime-wry | 2.12.1 | Apache-2.0 OR MIT |
 | tauri-utils | 2.10.1 | Apache-2.0 OR MIT |
+| tempfile | 3.27.0 | MIT OR Apache-2.0 |
 | tendril | 0.5.1 | MIT OR Apache-2.0 |
 | thiserror | 2.0.21 | MIT OR Apache-2.0 |
 | time | 0.3.55 | MIT OR Apache-2.0 |
@@ -328,6 +332,7 @@ SOFTWARE.
 | zeroize | 1.9.1 | Apache-2.0 OR MIT |
 | zerotrie | 0.2.5 | Unicode-3.0 |
 | zerovec | 0.11.8 | Unicode-3.0 |
+| zip | 4.6.1 | MIT |
 | zmij | 1.0.23 | MIT |
 
 ## 前端依赖（界面，41 个）

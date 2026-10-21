@@ -6,7 +6,7 @@
 
 *Local-First AI Study & Exam Preparation Assistant Powered by Tauri 2 + Rust + Vue 3*
 
-[![Release](https://img.shields.io/badge/Release-v0.2.3-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
+[![Release](https://img.shields.io/badge/Release-v0.2.4-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/INSTALL.md)
 [![Tauri](https://img.shields.io/badge/Tauri-v2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app/)
@@ -220,6 +220,18 @@ cd ../python-sidecar && python -m unittest -v
 npm run tauri:build
 ```
 产物将输出至：`src-tauri/target/release/bundle/nsis/ExamOps_<版本>_x64-setup.exe`。
+
+### 应用内更新与签名发布
+
+启动时仍仅检查 GitHub 正式版本。用户点击“下载更新”后显示进度，通过签名校验才可“安装并重启”；安装前需保存编辑内容、等待 AI 回答完成，资料处理期间会阻止安装。下载失败可重试或前往 GitHub 手动下载。下载包暂存在当前进程内，关闭应用后需重新下载，不支持断点续传。
+
+旧版（包括 v0.2.3）需要手动安装一次支持该流程的新版，此后才能使用应用内更新。升级保留原有数据目录，不改变课程、资料、笔记和设置。更新仍是完整安装包，包含 OCR 组件。
+
+发布需要固定的 Tauri 更新签名密钥：公钥位于 `src-tauri/tauri.conf.json`，私钥必须保存在仓库外并备份。GitHub Actions 使用仓库 Secret `TAURI_SIGNING_PRIVATE_KEY`，有密码时另设 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`。不要重新生成密钥替换已发布版本的公钥，否则旧客户端不能验证后续更新。
+
+本地构建先设置 `TAURI_SIGNING_PRIVATE_KEY`（私钥文件路径或内容）和 `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`（无密码时为空），然后运行 `npm run tauri:build` 和 `python scripts/updater-manifest.py`。发布标签必须为 `v<配置版本号>`。
+
+发布工作流会将 `.exe`、`.exe.sig`、`latest.json` 一起上传到草稿 Release；确认三个文件齐全后再发布。应用按选定版本读取该 Release 的清单，缺少清单或签名校验失败时不会安装。更新签名用于验证更新包，不等同于 Windows Authenticode 代码签名。
 
 ---
 

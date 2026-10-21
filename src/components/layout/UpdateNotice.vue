@@ -8,12 +8,13 @@
       <p class="font-medium">发现新版本 v{{ updates.available.version }}</p>
       <p class="mt-0.5 text-xs text-indigo-700">当前为 v{{ updates.available.current_version }}，Windows x64 安装包已发布。</p>
     </div>
-    <button type="button" class="btn btn-primary btn-sm" @click="updates.openRelease">查看更新</button>
-    <button type="button" class="btn btn-ghost btn-sm" @click="updates.dismiss">稍后提醒</button>
+    <UpdateActions />
+    <button type="button" class="btn btn-ghost btn-sm" :disabled="updates.phase === 'installing'" @click="updates.dismiss">稍后提醒</button>
   </div>
 </template>
 
 <script setup lang="ts">
 import { useUpdateStore } from '@/stores/updates'
+import UpdateActions from './UpdateActions.vue'
 const updates = useUpdateStore()
 </script>

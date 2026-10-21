@@ -36,6 +36,8 @@ fn main() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .manage(updates::UpdateState::default())
         .manage(documents::DocumentTasks::default())
         .manage(bilibili::BilibiliState::default())
         .manage(commands::document::PreviewLimiter::default())
@@ -81,6 +83,8 @@ fn main() {
             commands::app::update_app_settings,
             commands::app::get_app_info,
             commands::app::check_for_updates,
+            updates::download_update,
+            updates::install_update,
             commands::app::open_data_dir,
             commands::app::get_storage_info,
             commands::app::schedule_data_migration,

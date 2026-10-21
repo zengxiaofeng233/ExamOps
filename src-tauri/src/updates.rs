@@ -1,9 +1,81 @@
-//! Read-only GitHub Release discovery. Downloads and installation remain manual.
+//! GitHub Release discovery and explicitly requested, signature-verified updates.
 use crate::error::{AppError, AppResult};
 use reqwest::{Client, StatusCode};
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::time::Duration;
+use tauri::{ipc::Channel, AppHandle, Manager};
+use tauri_plugin_updater::UpdaterExt;
+
+#[derive(Default)]
+pub struct UpdateState(tokio::sync::Mutex<Option<(tauri_plugin_updater::Update, Vec<u8>)>>);
+
+#[derive(Clone, Serialize)]
+pub struct DownloadProgress {
+    downloaded: u64,
+    total: Option<u64>,
+}
+
+/// Re-discover the release on the backend; never accept a download URL from the UI.
+#[tauri::command]
+pub async fn download_update(app: AppHandle, version: String, on_progress: Channel<DownloadProgress>) -> AppResult<()> {
+    if !cfg!(all(target_os = "windows", target_arch = "x86_64")) {
+        return Err(AppError::msg("应用内更新目前仅支持 Windows x64"));
+    }
+    let state = app.state::<UpdateState>();
+    let mut ready = state.0.try_lock().map_err(|_| AppError::msg("更新正在处理中"))?;
+    if ready.as_ref().is_some_and(|(update, _)| update.version == version) { return Ok(()); }
+    *ready = None;
+    let release = check(&app.package_info().version).await?
+        .ok_or_else(|| AppError::msg("没有可下载的新版本，请重新检查更新"))?;
+    if release.version != version {
+        return Err(AppError::msg("可用版本已变化，请重新检查更新"));
+    }
+    // Pin the manifest to the selected release rather than a mutable /latest URL.
+    let manifest = format!("{}/latest.json", release.release_url.replace("/releases/tag/", "/releases/download/"));
+    let updater = app.updater_builder()
+        .endpoints(vec![url::Url::parse(&manifest).map_err(|_| AppError::msg("更新地址无效"))?])
+        .map_err(|e| AppError::msg(e.to_string()))?
+        .timeout(Duration::from_secs(15))
+        .build().map_err(|e| AppError::msg(e.to_string()))?;
+    let mut update = updater.check().await
+        .map_err(|e| AppError::msg(format!("无法获取签名更新包，可重试或手动下载：{e}")))?
+        .ok_or_else(|| AppError::msg("该版本暂无应用内更新包，请手动下载"))?;
+    if update.version != version {
+        return Err(AppError::msg("更新清单版本不匹配，请稍后重试"));
+    }
+    // Large OCR bundles need a longer download timeout than the manifest request.
+    update.timeout = Some(Duration::from_secs(3600));
+    let mut downloaded = 0_u64;
+    let mut last_event = std::time::Instant::now() - Duration::from_secs(1);
+    let bytes = update.download(|chunk, total| {
+        downloaded += chunk as u64;
+        if last_event.elapsed() >= Duration::from_millis(200) {
+            let _ = on_progress.send(DownloadProgress { downloaded, total });
+            last_event = std::time::Instant::now();
+        }
+    }, || {}).await.map_err(|e| AppError::msg(format!("下载或签名校验失败，可重试或手动下载：{e}")))?;
+    // download() returns only after signature verification succeeds.
+    let _ = on_progress.send(DownloadProgress { downloaded: bytes.len() as u64, total: Some(bytes.len() as u64) });
+    *ready = Some((update, bytes));
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn install_update(app: AppHandle) -> AppResult<()> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<UpdateState>();
+        let ready = state.0.try_lock().map_err(|_| AppError::msg("更新正在处理中"))?;
+        let (update, bytes) = ready.as_ref().ok_or_else(|| AppError::msg("请先下载并校验更新包"))?;
+        let tasks = app.state::<crate::documents::DocumentTasks>();
+        // Keep these locks through installer launch so the queue cannot start a new parser.
+        let busy = || AppError::msg("资料正在处理，请等待处理完成后再安装更新");
+        let _worker = tasks.1.try_lock().map_err(|_| busy())?;
+        let _mutation = tasks.0.try_lock().map_err(|_| busy())?;
+        let _registration = tasks.2.try_lock().map_err(|_| busy())?;
+        update.install(bytes).map_err(|e| AppError::msg(format!("启动安装失败，可重试或手动下载：{e}")))
+    }).await?
+}
 
 const RELEASES_API: &str = "https://api.github.com/repos/zengxiaofeng233/ExamOps/releases";
 const RELEASE_PAGE: &str = "https://github.com/zengxiaofeng233/ExamOps/releases/tag/";
@@ -124,8 +196,55 @@ pub async fn check(current: &Version) -> AppResult<Option<AvailableUpdate>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use base64::Engine;
     use serde_json::{json, Value};
     use tokio::io::{AsyncReadExt, AsyncWriteExt};
+
+    // Public test vector from tauri-plugin-updater: payload "test", signed for 2.0.0.
+    // These are a disposable public key and signature, never a production private key.
+    const TEST_PUBLIC_KEY: &str = "untrusted comment: minisign public key: A49EF4746FA6E6D7\nRWTX5qZvdPSepDGWg2bz8n6ArQnBMwgQK1geVosorcbLzcunD+KJ+cYe";
+    const TEST_SIGNATURE: &str = "untrusted comment: signature from tauri secret key\nRUTX5qZvdPSepPF2zsjvP/L/TQtBLRnWRvaq+4omK1UEugtQp/USrGiI1v762sDy3id3aor7bRC9ETyeot6lMHHrWoZ5hjUM1Qc=\ntrusted comment: timestamp:1791649051\tfile:payload\tversion:2.0.0\nDDq2CLOEl5cQmC2eJRHlnZPVViOZsu1CjpPKQoei4A/XBfkDqGO0B+QMrcrHgEQ5qV3mne75tdFWhJpqUXh9AA==";
+
+    fn signed_update(version: &str, url: &str) -> tauri_plugin_updater::Update {
+        let encode = |value| base64::engine::general_purpose::STANDARD.encode(value);
+        let mut context = tauri::test::mock_context(tauri::test::noop_assets());
+        let config: Value = serde_json::from_str(include_str!("../tauri.conf.json")).unwrap();
+        let mut plugin_config = config["plugins"]["updater"].clone();
+        plugin_config["pubkey"] = json!(encode(TEST_PUBLIC_KEY));
+        context.config_mut().plugins.0.insert("updater".into(), plugin_config);
+        let app = tauri::test::mock_builder()
+            .plugin(tauri_plugin_updater::Builder::new().build())
+            .build(context).unwrap();
+        app.updater_builder().target("windows-x86_64").no_proxy()
+            .endpoints(vec!["https://example.invalid/latest.json".parse().unwrap()]).unwrap()
+            .executable_path("test-runtime/app.exe").build().unwrap()
+            .restore_update(json!({"version": version, "platforms": {"windows-x86_64": {
+                "url": url, "signature": encode(TEST_SIGNATURE)
+            }}})).unwrap().unwrap()
+    }
+
+    #[tokio::test]
+    async fn signed_download_accepts_valid_bytes_and_rejects_tampering() {
+        for (payload, valid) in [("test", true), ("tampered", false)] {
+            let (endpoint, task) = server(vec![(200, payload.into())]).await;
+            let update = signed_update("2.0.0", &endpoint);
+            let mut received = 0;
+            let result = update.download(|chunk, _| received += chunk, || {}).await;
+            assert_eq!(result.is_ok(), valid);
+            assert_eq!(received, payload.len());
+            if valid { assert_eq!(result.unwrap(), b"test"); }
+            task.await.unwrap();
+        }
+    }
+
+    #[test]
+    fn signature_binds_version_and_install_rejects_invalid_bytes_before_launch() {
+        let update = signed_update("2.0.0", "https://example.invalid/update.exe");
+        assert!(update.verify(b"test").is_ok());
+        assert!(update.install(b"tampered").is_err());
+        let changed_version = signed_update("9.0.0", "https://example.invalid/update.exe");
+        assert!(changed_version.verify(b"test").is_err());
+    }
 
     fn release(tag: &str) -> Value {
         json!({"tag_name":tag,"draft":false,"prerelease":false,"assets":[{

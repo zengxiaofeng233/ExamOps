@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { Channel, invoke } from '@tauri-apps/api/core'
 import type { AppInfo, AppSettings, AvailableUpdate, LastLocation, StorageInfo } from '@/types/app'
 
 export const AppService = {
@@ -6,6 +6,12 @@ export const AppService = {
   updateSettings: (settings: AppSettings) => invoke<AppSettings>('update_app_settings', { settings }),
   info: () => invoke<AppInfo>('get_app_info'),
   checkUpdates: () => invoke<AvailableUpdate | null>('check_for_updates'),
+  downloadUpdate: (version: string, progress: (value: { downloaded: number; total: number | null }) => void) => {
+    const onProgress = new Channel<{ downloaded: number; total: number | null }>()
+    onProgress.onmessage = progress
+    return invoke<void>('download_update', { version, onProgress })
+  },
+  installUpdate: () => invoke<void>('install_update'),
   openDataDir: () => invoke<void>('open_data_dir'),
   storageInfo: () => invoke<StorageInfo>('get_storage_info'),
   scheduleMigration: (directory: string | null) => invoke<void>('schedule_data_migration', { directory }),
