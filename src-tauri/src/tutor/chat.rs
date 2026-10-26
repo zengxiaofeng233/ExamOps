@@ -1,7 +1,7 @@
 //! One question → one streamed, cited answer (Stage 3 pipeline; Stage 4 adds
 //! teaching plans on top of it).
 
-use super::{prompts, Message};
+use super::{images::{self, ImageAttachment, IMAGE_TOKEN_RESERVE}, prompts, Message};
 use crate::ai::{
     self,
     client::{ChatMessage, ChatOptions, StreamEvent},
@@ -17,11 +17,13 @@ use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::time::{Duration, Instant};
 
-#[derive(Debug, Clone, Deserialize)]
+#[derive(Debug, Clone, Default, Deserialize)]
 pub struct SendInput {
     pub conversation_id: i64,
     #[serde(default)]
     pub content: String,
+    #[serde(default)]
+    pub images: Vec<ImageAttachment>,
     /// Re-answer the last question instead of asking a new one.
     #[serde(default)]
     pub regenerate: bool,
@@ -71,20 +73,21 @@ pub fn history(conn: &Connection, conversation_id: i64, before_id: i64, turns: u
         return Ok(Vec::new());
     }
     let mut stmt = conn.prepare(
-        "SELECT role, content FROM messages WHERE conversation_id = ?1 AND id < ?2 AND content != ''
+        "SELECT role, content, meta FROM messages WHERE conversation_id = ?1 AND id < ?2 AND content != ''
          AND status IN ('done', 'cancelled') ORDER BY id DESC LIMIT ?3",
     )?;
-    let rows = stmt.query_map(params![conversation_id, before_id, (turns * 2) as i64], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+    let rows = stmt.query_map(params![conversation_id, before_id, (turns * 2) as i64], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?, r.get::<_, String>(2)?)))?;
     let mut picked = Vec::new();
     let mut used = 0;
     for row in rows {
-        let (role, content) = row?;
-        let cost = tokens::estimate(&content) + tokens::MESSAGE_OVERHEAD;
+        let (role, content, meta) = row?;
+        let images = images::from_meta(&serde_json::from_str(&meta)?)?.into_iter().map(|image| image.data_url).collect::<Vec<_>>();
+        let cost = tokens::estimate(&content) + tokens::MESSAGE_OVERHEAD + images.len() * IMAGE_TOKEN_RESERVE;
         if used + cost > max_tokens {
             break;
         }
         used += cost;
-        picked.push(ChatMessage { role, content });
+        picked.push(ChatMessage { role, content, images });
     }
     picked.reverse();
     // Start with a question so the exchange reads naturally.
@@ -97,7 +100,7 @@ pub fn history(conn: &Connection, conversation_id: i64, before_id: i64, turns: u
 /// Budget left for course material after rules, history, question and answer.
 pub fn material_budget(profile: &profiles::ResolvedProfile, fixed: &[&str], history: &[ChatMessage]) -> usize {
     let used: usize = fixed.iter().map(|t| tokens::estimate(t) + tokens::MESSAGE_OVERHEAD).sum::<usize>()
-        + history.iter().map(|m| tokens::estimate(&m.content) + tokens::MESSAGE_OVERHEAD).sum::<usize>();
+        + history.iter().map(|m| tokens::estimate(&m.content) + tokens::MESSAGE_OVERHEAD + m.images.len() * IMAGE_TOKEN_RESERVE).sum::<usize>();
     profile
         .context_window
         .saturating_sub(profile.max_output_tokens as usize)
@@ -109,12 +112,13 @@ pub fn material_budget(profile: &profiles::ResolvedProfile, fixed: &[&str], hist
 pub async fn run_turn(
     paths: &AppPaths,
     ai: &AiState,
-    conversation_id: i64,
+    input: &SendInput,
     plan_for: impl FnOnce(&Connection, &super::Conversation, &str) -> AppResult<TurnPlan>,
-    input_text: &str,
-    regenerate: bool,
     emit: impl Fn(ChatEvent) + Send + Sync,
 ) -> AppResult<Message> {
+    let conversation_id = input.conversation_id;
+    let regenerate = input.regenerate;
+    images::validate(&input.images)?;
     let conn = paths.connect()?;
     let conversation = super::get(&conn, conversation_id)?;
     let course = crate::commands::course::find(&conn, conversation.course_id)?;
@@ -122,41 +126,45 @@ pub async fn run_turn(
     let profile = profiles::resolve(&conn, ai.secrets.as_ref(), conversation.profile_id)?;
 
     // Regenerate re-asks the last question; otherwise store a new one.
-    let (user_message, question_text, history_before) = if regenerate {
+    let (question_text, history_before, images) = if regenerate {
         let last = super::last_user_message(&conn, conversation_id)?.ok_or_else(|| AppError::invalid("还没有可以重新生成的问题"))?;
         super::delete_after(&conn, conversation_id, last.id)?;
         let original = last.meta.get("input").and_then(Value::as_str).unwrap_or(&last.content).to_string();
-        (None, original, last.id)
+        (original, last.id, images::from_meta(&last.meta)?)
     } else {
-        let text = input_text.trim();
+        let text = input.content.trim();
         if text.chars().count() > MAX_QUESTION_CHARS {
             return Err(AppError::invalid(format!("问题过长（最多 {MAX_QUESTION_CHARS} 字）")));
         }
-        (None::<Message>, text.to_string(), i64::MAX)
+        let text = if text.is_empty() && !input.images.is_empty() { "请识别图片中的题目或手写答案，并结合当前学习内容讲解或点评。" } else { text };
+        (text.to_string(), i64::MAX, input.images.clone())
     };
     let plan = plan_for(&conn, &conversation, &question_text)?;
     if plan.prompt.trim().is_empty() {
         return Err(AppError::invalid("请输入问题"));
     }
-    let user_message = match user_message {
-        Some(message) => Some(message),
-        None if !regenerate => Some(super::insert_message(
+    let user_message = if !regenerate {
+        Some(super::insert_message(
             &conn,
             conversation_id,
             "user",
             &plan.display,
             "done",
             &[],
-            &json!({ "input": question_text, "plan": plan.meta }),
-        )?),
-        None => None,
+            &json!({ "input": question_text, "plan": plan.meta, "images": images }),
+        )?)
+    } else {
+        None
     };
     let before = user_message.as_ref().map(|m| m.id).unwrap_or(history_before);
     let history = history(&conn, conversation_id, before, app_settings.context.history_turns, profile.context_window / 4)?;
 
-    let fixed_prompt = prompts::system_prompt(&course.name, &plan.task, &BuiltContext::default());
+    let task = if !images.is_empty() || history.iter().any(|message| !message.images.is_empty()) {
+        format!("{}\n{}", plan.task, prompts::IMAGE_RULES)
+    } else { plan.task };
+    let fixed_prompt = prompts::system_prompt(&course.name, &task, &BuiltContext::default());
     let primary_tokens = plan.primary.as_ref().map(|p| p.tokens).unwrap_or(0);
-    let budget = material_budget(&profile, &[&fixed_prompt, &plan.prompt], &history).saturating_sub(primary_tokens);
+    let budget = material_budget(&profile, &[&fixed_prompt, &plan.prompt], &history).saturating_sub(primary_tokens + images.len() * IMAGE_TOKEN_RESERVE);
     let mut built = if plan.retrieve {
         context::build(&conn, &ContextRequest {
             course_id: conversation.course_id,
@@ -174,11 +182,11 @@ pub async fn run_turn(
         built = merge_primary(primary, built);
     }
     let after = plan.after;
-    let system = prompts::system_prompt(&course.name, &plan.task, &built);
+    let system = prompts::system_prompt(&course.name, &task, &built);
     let mut messages = vec![ChatMessage::system(system)];
     messages.extend(history);
-    messages.push(ChatMessage::user(plan.prompt.clone()));
-    let prompt_tokens: usize = messages.iter().map(|m| tokens::estimate(&m.content) + tokens::MESSAGE_OVERHEAD).sum();
+    messages.push(ChatMessage { role: "user".into(), content: plan.prompt.clone(), images: images.into_iter().map(|image| image.data_url).collect() });
+    let prompt_tokens: usize = messages.iter().map(|m| tokens::estimate(&m.content) + tokens::MESSAGE_OVERHEAD + m.images.len() * IMAGE_TOKEN_RESERVE).sum();
 
     let mut meta = json!({
         "profile": profile.name,
@@ -219,7 +227,12 @@ pub async fn run_turn(
     let (status, error) = match &outcome.error {
         None => ("done", None),
         Some(GatewayError::Cancelled) => ("cancelled", None),
-        Some(other) => ("error", Some(other.to_string())),
+        Some(other) => {
+            let hint = if messages.iter().any(|message| !message.images.is_empty()) {
+                "\n本次请求包含图片，请确认当前模型及接口支持图片输入。"
+            } else { "" };
+            ("error", Some(format!("{other}{hint}")))
+        }
     };
     let sources = context::finalize_sources(built.sources, &completion.text, &built.mode_used, built.pinned);
     meta["elapsed_ms"] = json!(completion.elapsed_ms);
@@ -328,7 +341,7 @@ mod tests {
     }
 
     async fn ask(paths: &AppPaths, ai: &AiState, id: i64, question: &str, events: Arc<Mutex<Vec<ChatEvent>>>) -> AppResult<Message> {
-        run_turn(paths, ai, id, qa_plan, question, false, move |e| events.lock().unwrap().push(e)).await
+        run_turn(paths, ai, &SendInput { conversation_id: id, content: question.into(), ..Default::default() }, qa_plan, move |e| events.lock().unwrap().push(e)).await
     }
 
     #[tokio::test]
@@ -372,7 +385,7 @@ mod tests {
         let body: Value = serde_json::from_str(&server.last_request().body).unwrap();
         let roles: Vec<_> = body["messages"].as_array().unwrap().iter().map(|m| m["role"].as_str().unwrap().to_string()).collect();
         assert_eq!(roles, vec!["system", "user", "assistant", "user"]);
-        let message = run_turn(&paths, &ai, id, qa_plan, "", true, |_| {}).await.unwrap();
+        let message = run_turn(&paths, &ai, &SendInput { conversation_id: id, regenerate: true, ..Default::default() }, qa_plan, |_| {}).await.unwrap();
         assert_eq!(message.content, "重新生成");
         let conn = paths.connect().unwrap();
         let contents: Vec<_> = super::super::messages(&conn, id).unwrap().into_iter().map(|m| m.content).collect();
@@ -462,9 +475,89 @@ mod tests {
         let (paths, conn) = test_support::course_with_document();
         let ai = AiState::new(Arc::new(MemoryStore::default()));
         let conversation = super::super::create(&conn, super::super::CreateConversation { course_id: 1, mode: None, title: None, context_mode: None, scope: None }, crate::context::ContextMode::Auto).unwrap();
-        let error = run_turn(&paths, &ai, conversation.id, qa_plan, "问题", false, |_| {}).await.unwrap_err();
+        let error = run_turn(&paths, &ai, &SendInput { conversation_id: conversation.id, content: "问题".into(), ..Default::default() }, qa_plan, |_| {}).await.unwrap_err();
         assert!(error.to_string().contains("尚未配置 AI 模型"));
         assert!(super::super::messages(&conn, conversation.id).unwrap().is_empty());
+        drop(conn);
+        test_support::cleanup(paths);
+    }
+
+    fn picture() -> ImageAttachment {
+        ImageAttachment { name: "答案.png".into(), data_url: "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a4qMAAAAASUVORK5CYII=".into() }
+    }
+
+    #[tokio::test]
+    async fn images_survive_reload_regeneration_and_follow_up() {
+        let server = MockServer::start(vec![
+            MockReply::Stream(vec!["【图片】这是手写答案"]),
+            MockReply::Stream(vec!["重新识别"]),
+            MockReply::Stream(vec!["继续解释"]),
+        ]).await;
+        let (paths, ai, id) = setup(&server);
+        let input = SendInput { conversation_id: id, images: vec![picture()], ..Default::default() };
+        let message = run_turn(&paths, &ai, &input, qa_plan, |_| {}).await.unwrap();
+        assert_eq!(message.status, "done");
+        let body: Value = serde_json::from_str(&server.last_request().body).unwrap();
+        let content = &body["messages"].as_array().unwrap().last().unwrap()["content"];
+        assert!(content[0]["text"].as_str().unwrap().contains("识别图片"));
+        assert_eq!(content[1]["image_url"]["url"], picture().data_url);
+        assert!(body["messages"][0]["content"].as_str().unwrap().contains("看不清"));
+        let conn = paths.connect().unwrap();
+        let detail = super::super::detail(&conn, id).unwrap();
+        assert_eq!(images::from_meta(&detail.messages[0].meta).unwrap(), vec![picture()]);
+        drop(conn);
+        run_turn(&paths, &ai, &SendInput { conversation_id: id, regenerate: true, ..Default::default() }, qa_plan, |_| {}).await.unwrap();
+        let retry: Value = serde_json::from_str(&server.last_request().body).unwrap();
+        assert_eq!(retry["messages"].as_array().unwrap().last().unwrap()["content"], *content);
+        ask(&paths, &ai, id, "第二步为什么这么写？", Arc::new(Mutex::new(Vec::new()))).await.unwrap();
+        let follow_up: Value = serde_json::from_str(&server.last_request().body).unwrap();
+        assert_eq!(follow_up["messages"][1]["content"][1]["image_url"]["url"], picture().data_url);
+        assert_eq!(follow_up["messages"].as_array().unwrap().last().unwrap()["content"], "第二步为什么这么写？");
+        let conn = paths.connect().unwrap();
+        assert_eq!(super::super::messages(&conn, id).unwrap().len(), 4);
+        drop(conn);
+        test_support::cleanup(paths);
+    }
+
+    #[tokio::test]
+    async fn all_teaching_modes_accept_image_answers_without_advancing_progress() {
+        let server = MockServer::start(vec![MockReply::Stream(vec!["点评答案"]), MockReply::Stream(vec!["点评答案"]), MockReply::Stream(vec!["点评答案"])]).await;
+        let (paths, ai, _) = setup(&server);
+        for mode in ["learn", "review", "sprint"] {
+            let conn = paths.connect().unwrap();
+            let section_id = conn.query_row("SELECT id FROM document_sections WHERE title = '第二章 导数' LIMIT 1", [], |row| row.get(0)).unwrap();
+            let conversation = super::super::teach::start(&conn, super::super::teach::StartTeaching {
+                course_id: 1, mode: mode.into(), section_id: Some(section_id), resource_id: None, step_id: None,
+            }, crate::context::ContextMode::Auto).unwrap();
+            let progress = conversation.progress;
+            drop(conn);
+            let message = run_turn(&paths, &ai, &SendInput { conversation_id: conversation.id, content: "这是我的答案".into(), images: vec![picture()], ..Default::default() },
+                |conn, conversation, text| super::super::teach::plan(conn, conversation, "ask", None, text), |_| {}).await.unwrap();
+            assert_eq!(message.status, "done");
+            let body: Value = serde_json::from_str(&server.last_request().body).unwrap();
+            assert_eq!(body["messages"].as_array().unwrap().last().unwrap()["content"][1]["image_url"]["url"], picture().data_url);
+            let conn = paths.connect().unwrap();
+            assert_eq!(super::super::get(&conn, conversation.id).unwrap().progress, progress);
+        }
+        test_support::cleanup(paths);
+    }
+
+    #[tokio::test]
+    async fn invalid_images_are_rejected_before_storing_messages() {
+        let server = MockServer::start(Vec::new()).await;
+        let (paths, ai, id) = setup(&server);
+        let invalid = [
+            vec![picture(); 5],
+            vec![ImageAttachment { name: "remote.png".into(), data_url: "https://example.com/image.png".into() }],
+            vec![ImageAttachment { name: "fake.png".into(), data_url: "data:image/png;base64,aGVsbG8=".into() }],
+            vec![ImageAttachment { name: "bad.png".into(), data_url: "data:image/png;base64,%%%".into() }],
+            vec![ImageAttachment { name: "large.png".into(), data_url: format!("data:image/png;base64,{}", "A".repeat(images::MAX_IMAGE_BYTES * 2)) }],
+        ];
+        for images in invalid {
+            assert!(run_turn(&paths, &ai, &SendInput { conversation_id: id, images, ..Default::default() }, qa_plan, |_| {}).await.is_err());
+        }
+        let conn = paths.connect().unwrap();
+        assert!(super::super::messages(&conn, id).unwrap().is_empty());
         drop(conn);
         test_support::cleanup(paths);
     }

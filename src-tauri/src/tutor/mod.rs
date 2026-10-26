@@ -1,6 +1,7 @@
 //! Tutor Engine: conversations with the AI about the student's own materials.
 
 pub mod chat;
+pub mod images;
 pub mod prompts;
 pub mod teach;
 

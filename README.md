@@ -6,7 +6,7 @@
 
 *Local-First AI Study & Exam Preparation Assistant Powered by Tauri 2 + Rust + Vue 3*
 
-[![Release](https://img.shields.io/badge/Release-v0.2.4-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
+[![Release](https://img.shields.io/badge/Release-v0.2.5-blue.svg)](https://github.com/zengxiaofeng233/ExamOps/releases)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Windows_10%20%7C%2011-0078D6?logo=windows&logoColor=white)](docs/INSTALL.md)
 [![Tauri](https://img.shields.io/badge/Tauri-v2.0-24C8D8?logo=tauri&logoColor=white)](https://tauri.app/)
@@ -47,6 +47,7 @@
 - **全文毫秒级检索**：内置 SQLite FTS5 + `unicode61` 中文分词索引，支持原页面对照预览与高亮定位。
 
 ### 2. 🤖 三大模式 AI 精讲与网课伴学 (Tutor Engine)
+- **图片讲题与手写答案识别**：AI 学习和 AI 问答均支持选择、拖拽、粘贴 JPG / PNG / WebP，每条消息最多 4 张、每张 5 MB；可只发图片，图片随对话保存在本机，并发送给你配置的视觉模型用于讲解、点评和后续追问。
 - **三种学习模式**：
   - **从零学习**：按章节切分为 ~1500 字的渐进段落，逐段深度剖析，支持追问、案例拓展与实时测验。
   - **正常复习**：启发式主动回忆引导，先让你尝试复述关键结论，再指出漏洞与补充推导。

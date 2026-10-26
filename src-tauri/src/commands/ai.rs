@@ -136,10 +136,10 @@ pub async fn send_message(
         }
     };
     match teaching {
-        None => chat::run_turn(paths.inner(), ai.inner(), input.conversation_id, chat::qa_plan, &input.content, input.regenerate, emit).await,
+        None => chat::run_turn(paths.inner(), ai.inner(), &input, chat::qa_plan, emit).await,
         Some((action, target)) => {
             let plan = move |conn: &rusqlite::Connection, conversation: &Conversation, text: &str| teach::plan(conn, conversation, &action, target, text);
-            chat::run_turn(paths.inner(), ai.inner(), input.conversation_id, plan, &input.content, input.regenerate, emit).await
+            chat::run_turn(paths.inner(), ai.inner(), &input, plan, emit).await
         }
     }
 }

@@ -129,6 +129,7 @@ export interface PlanMeta {
 }
 
 export interface MessageMeta {
+  images?: ImageAttachment[]
   profile?: string
   model?: string
   context_mode?: 'full' | 'rag' | 'lesson' | 'none'
@@ -146,6 +147,11 @@ export interface MessageMeta {
   usage?: { prompt: number; completion: number; estimated: boolean }
   input?: string
   [key: string]: unknown
+}
+
+export interface ImageAttachment {
+  name: string
+  data_url: string
 }
 
 export interface Message {

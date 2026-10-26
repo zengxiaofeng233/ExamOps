@@ -1,6 +1,6 @@
 {
   "name": "exam-ops",
-  "version": "0.2.4",
+  "version": "0.2.5",
   "description": "AI 智能学习桌面应用",
   "type": "commonjs",
   "scripts": {

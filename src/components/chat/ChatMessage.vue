@@ -5,7 +5,14 @@
     </span>
   </div>
   <div v-else-if="message.role === 'user'" class="flex justify-end">
-    <div class="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-7 break-words whitespace-pre-wrap text-white">{{ message.content }}</div>
+    <div class="max-w-[85%] rounded-2xl rounded-br-md bg-primary px-4 py-2.5 text-[15px] leading-7 break-words text-white">
+      <div v-if="message.meta.images?.length" class="mb-2 flex flex-wrap gap-2">
+        <button v-for="(image, index) in message.meta.images" :key="index" type="button" :aria-label="`查看图片 ${image.name}`" @click="previewImage = image; preview?.showModal()">
+          <img :src="image.data_url" :alt="image.name" class="max-h-48 max-w-full rounded-lg bg-white object-contain" />
+        </button>
+      </div>
+      <p class="whitespace-pre-wrap">{{ message.content }}</p>
+    </div>
   </div>
   <div v-else class="flex gap-3">
     <div class="mt-0.5 flex size-7 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-violet-500 text-[11px] font-bold text-white">AI</div>
@@ -48,6 +55,10 @@
       </div>
     </div>
   </div>
+  <dialog ref="preview" class="m-auto max-h-[90vh] max-w-[90vw] rounded-xl bg-surface p-3 backdrop:bg-black/60" aria-label="图片预览" @click="event => { if (event.target === preview) preview?.close() }">
+    <div class="mb-2 flex justify-end"><button type="button" class="btn btn-secondary btn-sm" @click="preview?.close()">关闭图片</button></div>
+    <img v-if="previewImage" :src="previewImage.data_url" :alt="previewImage.name" class="max-h-[75vh] max-w-full object-contain" />
+  </dialog>
 </template>
 
 <script setup lang="ts">
@@ -55,11 +66,13 @@ import { computed, ref } from 'vue'
 import { BoltIcon } from '@heroicons/vue/20/solid'
 import MarkdownContent from './MarkdownContent.vue'
 import SourceList from './SourceList.vue'
-import type { Message, SourceRef } from '@/types/ai'
+import type { ImageAttachment, Message, SourceRef } from '@/types/ai'
 
 const props = defineProps<{ message: Message; isLast?: boolean; busy?: boolean; liveReasoning?: string }>()
 const emit = defineEmits<{ 'open-source': [source: SourceRef]; regenerate: [] }>()
 const copied = ref(false)
+const preview = ref<HTMLDialogElement>()
+const previewImage = ref<ImageAttachment>()
 
 const reasoning = computed(() => props.liveReasoning || (props.message.meta.reasoning as string | undefined) || '')
 const contextLabel = computed(() => ({ full: '全文上下文', rag: '检索上下文', lesson: '本节资料', none: '无资料' } as Record<string, string>)[props.message.meta.context_mode ?? ''] ?? '')

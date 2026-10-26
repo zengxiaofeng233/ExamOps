@@ -24,14 +24,16 @@ fn is_transient(error: &GatewayError) -> bool {
 pub struct ChatMessage {
     pub role: String,
     pub content: String,
+    #[serde(skip)]
+    pub images: Vec<String>,
 }
 
 impl ChatMessage {
     pub fn system(content: impl Into<String>) -> Self {
-        ChatMessage { role: "system".into(), content: content.into() }
+        ChatMessage { role: "system".into(), content: content.into(), images: Vec::new() }
     }
     pub fn user(content: impl Into<String>) -> Self {
-        ChatMessage { role: "user".into(), content: content.into() }
+        ChatMessage { role: "user".into(), content: content.into(), images: Vec::new() }
     }
 }
 
@@ -148,7 +150,14 @@ impl Gateway {
     fn body(profile: &ResolvedProfile, messages: &[ChatMessage], options: &ChatOptions, stream: bool, compat: Compat) -> Value {
         let mut body = json!({
             "model": profile.model,
-            "messages": messages,
+            "messages": messages.iter().map(|message| {
+                if message.images.is_empty() {
+                    return json!(message);
+                }
+                let mut content = vec![json!({ "type": "text", "text": message.content })];
+                content.extend(message.images.iter().map(|url| json!({ "type": "image_url", "image_url": { "url": url } })));
+                json!({ "role": message.role, "content": content })
+            }).collect::<Vec<_>>(),
             "stream": stream,
         });
         let max_tokens = options.max_tokens.unwrap_or(profile.max_output_tokens);

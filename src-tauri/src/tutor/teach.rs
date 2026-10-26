@@ -854,14 +854,14 @@ mod tests {
         let chapter = section(&conn, "第二章 导数");
         let conversation = start(&conn, learn(Some(chapter), None), context::ContextMode::Auto).unwrap();
         drop(conn);
-        let failed = chat::run_turn(&paths, &ai, conversation.id, |c, conv, t| plan(c, conv, "start", None, t), "", false, |_| {}).await.unwrap();
+        let failed = chat::run_turn(&paths, &ai, &chat::SendInput { conversation_id: conversation.id, ..Default::default() }, |c, conv, t| plan(c, conv, "start", None, t), |_| {}).await.unwrap();
         assert_eq!(failed.status, "error");
         let conn = paths.connect().unwrap();
         assert_eq!(crate::tutor::get(&conn, conversation.id).unwrap().progress.next, 0);
         // Regenerate after the failure re-runs the same action.
         let (action, target) = prepare_regenerate(&conn, conversation.id).unwrap();
         drop(conn);
-        let ok = chat::run_turn(&paths, &ai, conversation.id, |c, conv, t| plan(c, conv, &action, target, t), "", true, |_| {}).await.unwrap();
+        let ok = chat::run_turn(&paths, &ai, &chat::SendInput { conversation_id: conversation.id, regenerate: true, ..Default::default() }, |c, conv, t| plan(c, conv, &action, target, t), |_| {}).await.unwrap();
         assert_eq!(ok.status, "done");
         assert_eq!(ok.meta["context_mode"], "lesson");
         assert!(ok.sources.len() == 1 && ok.sources[0].cited && ok.sources[0].loc_label == "第 3 页");

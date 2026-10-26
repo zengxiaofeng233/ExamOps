@@ -13,6 +13,8 @@
 
 ## 命令清单
 
+`send_message` 的 `input.images` 为可选数组（省略时按纯文字消息处理），每项包含 `name` 和 `data_url`（PNG / JPEG / WebP 的 base64 data URL）。每条消息最多 4 张，每张解码后最多 5 MB。图片保存在用户消息的 `meta.images`，随历史和重新生成传递；`content` 可在有图片时为空。数据库表结构保持不变。
+
 ### `commands/ai.rs`
 
 | 命令 | 参数 | 返回 | 说明 |

@@ -67,6 +67,7 @@
       <div class="mx-auto max-w-3xl">
         <slot name="actions" :busy="busy" :send="send" :conversation="conversation" :ready="!!conversation && models.configured" />
         <ChatComposer
+          :key="conversationId"
           ref="composer"
           :busy="busy"
           :disabled="!conversation || !models.configured"
@@ -198,6 +199,7 @@ function onEvent(event: ChatEvent) {
   switch (event.type) {
     case 'started':
       requestId.value = event.request_id
+      if (event.user_message) composer.value?.clearSubmitted()
       if (event.user_message) messages.value.push(event.user_message)
       messages.value.push(event.assistant_message)
       streamingId.value = event.assistant_message.id

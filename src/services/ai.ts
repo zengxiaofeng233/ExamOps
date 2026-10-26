@@ -1,7 +1,7 @@
 import { Channel, invoke } from '@tauri-apps/api/core'
 import type {
   ChatEvent, ContextMode, Conversation, ConversationDetail, ConversationScope, Message, ModelProfile,
-  ModelListInput, ProfileInput, SaveProfileResult, TestReport, TutorMode, UsageSummary
+  ModelListInput, ProfileInput, SaveProfileResult, TestReport, TutorMode, UsageSummary, ImageAttachment
 } from '@/types/ai'
 import type { LessonPart, StartTeachingInput, TeachAction } from '@/types/study'
 
@@ -34,6 +34,7 @@ export interface ConversationUpdate {
 
 /** Teaching action for learn / review / sprint conversations (default: a question). */
 export interface SendOptions {
+  images?: ImageAttachment[]
   action?: TeachAction
   target?: number
 }
@@ -47,7 +48,7 @@ export const ChatService = {
   send: (conversationId: number, content: string, onEvent: (event: ChatEvent) => void, regenerate = false, options: SendOptions = {}) => {
     const channel = new Channel<ChatEvent>()
     channel.onmessage = onEvent
-    const input = { conversation_id: conversationId, content, regenerate, action: options.action ?? null, target: options.target ?? null }
+    const input = { conversation_id: conversationId, content, images: options.images ?? [], regenerate, action: options.action ?? null, target: options.target ?? null }
     return invoke<Message>('send_message', { input, onEvent: channel })
   },
   cancel: (requestId: string) => invoke<boolean>('cancel_generation', { requestId })
