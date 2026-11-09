@@ -8,7 +8,6 @@
     <div class="startup-brand flex flex-col items-center text-center">
       <div class="mb-6 flex size-20 items-center justify-center rounded-3xl bg-primary text-4xl font-bold text-white shadow-lg ring-8 ring-indigo-500/10">E</div>
       <p class="text-3xl font-semibold tracking-tight text-slate-900">ExamOps</p>
-      <p class="mt-2 text-sm tracking-widest text-slate-500">AI 智能复习</p>
     </div>
   </div>
 </template>

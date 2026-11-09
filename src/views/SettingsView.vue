@@ -2,7 +2,6 @@
   <div class="flex h-full flex-col">
     <header class="border-b border-slate-200 bg-surface px-6 py-4">
       <h1 class="page-title">设置</h1>
-      <p class="mt-0.5 text-sm text-slate-500">所有设置和学习数据仅保存在本机。</p>
     </header>
     <div class="flex min-h-0 flex-1">
       <nav class="w-44 shrink-0 space-y-0.5 border-r border-slate-200 bg-surface p-2" aria-label="设置分类">

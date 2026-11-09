@@ -52,7 +52,7 @@
           type="search"
           maxlength="200"
           class="min-w-0 flex-1 border-0 bg-transparent text-sm outline-none placeholder:text-slate-400"
-          placeholder="在本课程资料中检索关键词，例如：导数 几何意义"
+          placeholder="在本课程资料中检索关键词"
           aria-label="检索资料"
         />
         <select v-model="searchScope" class="rounded-md border border-slate-200 bg-surface px-2 py-1 text-xs text-slate-600" aria-label="检索范围">

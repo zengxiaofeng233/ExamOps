@@ -3,7 +3,7 @@
     <div class="mx-auto max-w-5xl space-y-6 p-6">
       <section>
         <h1 class="text-2xl font-semibold text-slate-900">欢迎使用 ExamOps</h1>
-        <p class="mt-1 text-sm text-slate-500">导入自己的课程资料，按自己的节奏学习、检验和复习。所有数据只保存在本机。</p>
+        <p class="mt-1 text-sm text-slate-500">导入自己的课程资料，按自己的节奏学习、检验和复习。</p>
       </section>
 
       <section v-if="last && lastCourse" class="card flex flex-wrap items-center justify-between gap-4 p-5">
