@@ -214,7 +214,7 @@ pub fn save(conn: &mut Connection, store: &dyn SecretStore, input: ProfileInput)
                 Ok(()) => ("keyring", None),
                 Err(error) => {
                     warning = Some(format!(
-                        "{}不可用（{error}），API Key 已改为保存在本机数据库中。请勿把数据目录分享给他人。",
+                        "{}不可用（{error}），API Key 已改为保存在本机数据库中。",
                         store.label()
                     ));
                     ("local", Some(key.to_string()))

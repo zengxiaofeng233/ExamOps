@@ -124,7 +124,7 @@
             </section>
             <section class="card p-5">
               <h2 class="section-title">关于 ExamOps</h2>
-              <p class="mt-2 text-sm text-slate-600">基于个人学习资料的 AI 智能复习桌面软件。单用户、本地运行，无账号、无云端存储。</p>
+              <p class="mt-2 text-sm text-slate-600">基于个人学习资料的 AI 智能复习桌面软件。</p>
               <dl v-if="info" class="mt-3 grid grid-cols-[8rem_minmax(0,1fr)] gap-y-2 text-sm">
                 <dt class="text-slate-500">版本</dt>
                 <dd class="text-slate-700">{{ info.version }}</dd>
@@ -137,15 +137,6 @@
                 学习方法设计参考了 Universal ExamPrep Skill（MIT 许可）。ExamOps 使用了许多开源组件，感谢它们的作者。
               </p>
               <button class="btn btn-secondary mt-3" @click="showNotices">查看开源许可</button>
-            </section>
-            <section class="card p-5">
-              <h2 class="section-title">隐私</h2>
-              <ul class="mt-2 list-disc space-y-1 pl-5 text-sm text-slate-600">
-                <li>没有账号，没有云端存储；课程资料、学习记录和设置只保存在本机的数据目录。</li>
-                <li>只有在你使用 AI 功能时，相关资料片段和问题才会发送到你自己配置的 AI 接口；ExamOps 不经过任何中转服务器。</li>
-                <li>启动时和手动检查更新时会连接 GitHub 获取公开版本信息，不上传课程资料、学习记录或 API Key。</li>
-                <li>API Key 优先保存在 Windows 凭据管理器中（不可用时保存在本机数据库并提示），界面只显示首尾几位。</li>
-              </ul>
             </section>
           </template>
         </div>

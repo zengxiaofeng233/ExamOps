@@ -69,7 +69,7 @@
           </div>
         </div>
       </form>
-      <EmptyState v-else-if="!loading" title="选择或新建一条笔记" description="笔记保存在本机，可以关联到资料页、章节或知识点，方便复习时回看。">
+      <EmptyState v-else-if="!loading" title="选择或新建一条笔记" description="笔记可以关联到资料页、章节或知识点，方便复习时回看。">
         <button class="btn btn-primary" @click="startNew({})">新建笔记</button>
       </EmptyState>
     </section>

@@ -43,7 +43,7 @@
           </div>
         </template>
       </ChatPanel>
-      <EmptyState v-else-if="!loading" title="选择或新建一个对话" description="对话记录会保存在本机，下次打开可以继续。">
+      <EmptyState v-else-if="!loading" title="选择或新建一个对话" description="对话记录会保留，下次打开可以继续。">
         <button class="btn btn-primary" @click="createConversation()">新建对话</button>
       </EmptyState>
     </section>

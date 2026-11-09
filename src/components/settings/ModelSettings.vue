@@ -69,7 +69,7 @@
         <div><dt class="text-xs text-slate-500">累计 tokens</dt><dd class="text-lg font-semibold">{{ (usage.total_prompt + usage.total_completion).toLocaleString() }}</dd></div>
         <div><dt class="text-xs text-slate-500">请求次数</dt><dd class="text-lg font-semibold">{{ usage.requests }}</dd></div>
       </dl>
-      <p class="hint mt-2">接口未返回用量时按字数估算，仅供参考；实际费用以服务商账单为准。</p>
+      <p class="hint mt-2">接口未返回用量时按字数估算。</p>
     </section>
 
     <ProfileDialog :open="dialogOpen" :profile="editing" @close="dialogOpen = false" @saved="onSaved" />

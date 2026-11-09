@@ -12,7 +12,7 @@
         <img v-if="qr" :src="qr.image" alt="B 站登录二维码" class="mx-auto size-60 rounded bg-white p-2" />
         <p class="text-sm text-slate-600" role="status">{{ status }}</p>
         <button v-if="retry" type="button" class="btn btn-secondary" @click="start">重新获取二维码</button>
-        <p class="text-xs leading-5 text-slate-500">登录凭据仅保存在本机系统凭据管理器，用于读取 B 站网课文字，不会发给 AI。可随时清除本应用的登录信息。</p>
+        <p class="text-xs leading-5 text-slate-500">用于读取 B 站网课文字。可随时清除本应用的登录信息。</p>
       </div>
     </AppModal>
   </div>

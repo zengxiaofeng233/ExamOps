@@ -123,7 +123,7 @@
             </div>
           </template>
         </ChatPanel>
-        <EmptyState v-else-if="!loading" title="选择学习模式和章节" description="从零学习按章节分段讲解；正常复习用回忆题巩固；考前冲刺直击考点。学习进度会保存在本机。" />
+        <EmptyState v-else-if="!loading" title="选择学习模式和章节" description="从零学习按章节分段讲解；正常复习用回忆题巩固；考前冲刺直击考点。" />
       </div>
 
       <aside v-if="active?.mode === 'learn' && outline.length" class="hidden w-60 shrink-0 overflow-y-auto border-l border-slate-200 bg-surface p-3 lg:block" aria-label="本次学习内容">
