@@ -7,7 +7,7 @@
           <div v-for="card in cards" :key="card.label" class="card p-4">
             <p class="text-xs text-slate-500">{{ card.label }}</p>
             <p class="mt-1 text-2xl font-semibold tabular-nums" :class="card.tone">{{ card.value }}</p>
-            <p v-if="card.hint" class="text-[11px] text-slate-400">{{ card.hint }}</p>
+            <p v-if="card.hint" class="mt-0.5 text-xs text-slate-500">{{ card.hint }}</p>
           </div>
         </section>
 
@@ -44,7 +44,7 @@
                 </p>
                 <button class="btn btn-primary btn-sm mt-2" @click="quiz({ course_id: course.id, origin: 'review', knowledge_point_ids: advice.focus.map(f => f.id) })">做这些知识点的小测</button>
               </div>
-              <p class="mt-2 text-[11px] text-slate-400">由 {{ advice.model }} 根据你的掌握度、到期复习、错题和考试日期生成</p>
+              <p class="mt-2 text-xs text-slate-500">由 {{ advice.model }} 根据你的掌握度、到期复习、错题和考试日期生成</p>
             </template>
             <p v-else class="mt-3 text-sm text-slate-500">让 AI 根据你的掌握度、错题、复习计划和考试日期，给出今天和接下来几天的复习安排。</p>
           </section>
@@ -68,7 +68,7 @@
               <span class="badge shrink-0" :class="REASON_CLASSES[item.reason]">{{ item.reason_label }}</span>
               <span class="min-w-40 flex-1">
                 <span class="block truncate text-sm font-medium text-slate-800">{{ item.point.title }}</span>
-                <span class="block truncate text-xs text-slate-400">{{ item.point.section_title ?? item.point.filename ?? '' }}</span>
+                <span class="block truncate text-xs text-slate-500">{{ item.point.section_title ?? item.point.filename ?? '' }}</span>
               </span>
               <MasteryBar :score="item.mastery?.score ?? null" />
               <span class="w-20 text-right text-xs text-slate-500">{{ item.mastery?.due_date ? describeDue(item.mastery.due_date) : '' }}</span>
@@ -102,7 +102,7 @@
                 <summary class="flex cursor-pointer list-none items-start gap-2">
                   <span class="badge shrink-0 bg-slate-100 text-slate-600">{{ mistake.kind_label }}</span>
                   <span class="min-w-0 flex-1 text-sm text-slate-800">{{ plain(mistake.prompt) }}</span>
-                  <span class="shrink-0 text-xs text-slate-400">{{ mistake.knowledge_point_title }}</span>
+                  <span class="shrink-0 text-xs text-slate-500">{{ mistake.knowledge_point_title }}</span>
                 </summary>
                 <dl class="mt-3 grid gap-2 text-sm sm:grid-cols-[5.5rem_minmax(0,1fr)]">
                   <dt class="text-slate-500">你的答案</dt>

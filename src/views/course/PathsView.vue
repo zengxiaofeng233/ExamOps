@@ -21,7 +21,7 @@
               <div class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                 <div class="h-full rounded-full bg-emerald-500" :style="{ width: `${pathPercent(item)}%` }" />
               </div>
-              <p class="mt-1 text-[11px] text-slate-400">
+              <p class="mt-1 text-xs text-slate-500">
                 {{ item.done_count }}/{{ item.step_count }} 已完成
                 <span v-if="item.id === activePathId" class="text-indigo-600">· 当前路径</span>
                 <span v-if="item.archived">· 已归档</span>
@@ -33,13 +33,13 @@
     </aside>
 
     <section class="min-w-0 flex-1 overflow-y-auto">
-      <div v-if="detail" class="mx-auto max-w-4xl space-y-4 p-5">
+      <div v-if="detail" class="mx-auto max-w-4xl space-y-5 p-6">
         <header class="card p-5">
           <div class="flex flex-wrap items-start gap-3">
             <div class="min-w-40 flex-1">
               <p class="flex flex-wrap items-center gap-2">
                 <span class="badge" :class="MODE_CLASSES[detail.path.mode]">{{ MODE_LABELS[detail.path.mode] }}</span>
-                <span class="text-xs text-slate-400">{{ ORIGIN_LABELS[detail.path.origin] ?? '' }}</span>
+                <span class="text-xs text-slate-500">{{ ORIGIN_LABELS[detail.path.origin] ?? '' }}</span>
                 <span v-if="detail.path.id === activePathId" class="badge bg-primary text-white">当前路径</span>
               </p>
               <h2 class="mt-1.5 text-lg font-semibold text-slate-900">{{ detail.path.name }}</h2>
@@ -68,7 +68,7 @@
           <li
             v-for="(step, index) in detail.steps"
             :key="step.id"
-            class="card flex items-start gap-3 p-3.5 transition-shadow"
+            class="card flex items-start gap-3 p-4 transition-shadow"
             :class="[
               step.id === nextStepId ? 'ring-2 ring-indigo-300' : '',
               dragOver === step.id ? 'ring-2 ring-indigo-500' : '',
@@ -95,7 +95,7 @@
                 <span class="badge" :class="STEP_STATUS_CLASSES[step.status]">{{ STEP_STATUS_LABELS[step.status] }}</span>
               </p>
               <p v-if="step.instructions" class="mt-1 text-xs whitespace-pre-wrap text-slate-600">{{ step.instructions }}</p>
-              <p class="mt-1 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
+              <p class="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-500">
                 <span v-if="step.document_name">{{ step.document_name }}</span>
                 <span v-if="step.section_title && !step.title.includes(step.section_title)">{{ step.section_title }}</span>
                 <span v-if="step.resource_title && !step.title.includes(step.resource_title)">网课：{{ step.resource_title }}</span>
@@ -128,7 +128,7 @@
           </li>
         </ol>
         <button v-if="detail.steps.length" class="btn btn-secondary w-full" @click="addStep(null)"><PlusIcon class="size-4" />添加步骤</button>
-        <p v-if="detail.steps.length > 1" class="text-center text-xs text-slate-400">拖动步骤或使用上下箭头调整顺序</p>
+        <p v-if="detail.steps.length > 1" class="text-center text-xs text-slate-500">拖动步骤或使用上下箭头调整顺序</p>
       </div>
       <EmptyState v-else-if="!loading" title="选择或新建一条学习路径" description="学习路径由你来定：可以按章节、按网课、按考点，随时调整顺序和内容。">
         <button class="btn btn-primary" @click="creating = true">新建学习路径</button>

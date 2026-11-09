@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-3xl space-y-4 p-5">
+  <div class="mx-auto max-w-3xl space-y-5 p-6">
     <header class="card p-4">
       <div class="flex flex-wrap items-center gap-2">
         <h2 class="min-w-40 flex-1 truncate text-base font-semibold text-slate-900" :title="quiz.title">{{ quiz.title }}</h2>

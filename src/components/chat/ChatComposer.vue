@@ -26,7 +26,7 @@
         <slot name="tools" />
       </div>
       <div class="flex shrink-0 items-center gap-2">
-        <span class="hidden whitespace-nowrap text-[11px] text-slate-400 xl:inline">Enter 发送 · Shift+Enter 换行</span>
+        <span class="hidden whitespace-nowrap text-xs text-slate-400 xl:inline">Enter 发送 · Shift+Enter 换行</span>
         <button v-if="busy" type="button" class="btn btn-secondary btn-sm" @click="emit('stop')">
           <StopIcon class="size-3.5" />停止
         </button>
@@ -35,7 +35,7 @@
         </button>
       </div>
     </div>
-    <p class="px-4 pb-2 text-[11px] text-slate-400">可拖入或粘贴图片 · JPG / PNG / WebP · 最多 4 张，每张 5 MB · 需使用支持图片的模型</p>
+    <p class="px-4 pb-2 text-xs text-slate-500">可拖入或粘贴图片 · JPG / PNG / WebP · 最多 4 张，每张 5 MB · 需使用支持图片的模型</p>
     <p v-if="error" role="alert" class="px-4 pb-3 text-xs text-rose-600">{{ error }}</p>
   </form>
 </template>

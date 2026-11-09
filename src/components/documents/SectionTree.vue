@@ -24,10 +24,10 @@
             @click="emit('select', item.section)"
           >
             <span class="line-clamp-2 break-words">{{ item.section.title }}</span>
-            <span class="block text-[11px] text-slate-400">{{ item.section.loc_label }}</span>
-            <span v-if="item.section.source === 'topic'" class="block text-[11px] text-sky-700">主题学习单元 · 自动分段</span>
-            <span v-if="item.section.locked" class="text-[11px] text-amber-700">已锁定</span>
-            <span v-else-if="item.section.user_edited" class="text-[11px] text-slate-500">已手动调整</span>
+            <span class="block text-xs text-slate-500">{{ item.section.loc_label }}</span>
+            <span v-if="item.section.source === 'topic'" class="block text-xs text-sky-700">主题学习单元 · 自动分段</span>
+            <span v-if="item.section.locked" class="text-xs text-amber-700">已锁定</span>
+            <span v-else-if="item.section.user_edited" class="text-xs text-slate-500">已手动调整</span>
           </button>
         </div>
       </li>
@@ -41,7 +41,7 @@
         <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || selected.locked || !following || following.locked" @click="following && emit('edit', selected, { action: 'merge', next_id: following.id })">合并下一节</button>
         <button type="button" class="btn btn-secondary btn-sm" :disabled="busy || selected.locked || !name.trim()" @click="emit('split', selected, name === selected.title ? `${name}（续）` : name)">选择拆分位置</button>
       </div>
-      <p class="text-[11px] text-slate-500">合并保留当前名称。拆分后原引用保留在前半节；子章节引用保持不变。锁定后重新解析将保留当前目录；原文位置变化时提示解锁。</p>
+      <p class="text-xs text-slate-500">合并保留当前名称。拆分后原引用保留在前半节；子章节引用保持不变。锁定后重新解析将保留当前目录；原文位置变化时提示解锁。</p>
     </form>
   </nav>
 </template>

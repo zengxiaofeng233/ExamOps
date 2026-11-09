@@ -17,7 +17,7 @@
             >
               <p class="truncate text-sm font-medium text-slate-800">{{ note.title }}</p>
               <p class="mt-0.5 line-clamp-2 text-xs text-slate-500">{{ note.content }}</p>
-              <p class="mt-0.5 truncate text-[11px] text-slate-400">{{ linkLabel(note) || '未关联' }} · {{ formatRelative(note.updated_at) }}</p>
+              <p class="mt-0.5 truncate text-xs text-slate-500">{{ linkLabel(note) || '未关联' }} · {{ formatRelative(note.updated_at) }}</p>
             </button>
           </li>
         </ul>
@@ -25,7 +25,7 @@
     </aside>
 
     <section class="min-w-0 flex-1 overflow-y-auto">
-      <form v-if="form" class="mx-auto max-w-3xl space-y-3 p-5" novalidate @submit.prevent="save">
+      <form v-if="form" class="mx-auto max-w-3xl space-y-4 p-6" novalidate @submit.prevent="save">
         <div class="flex flex-wrap items-center gap-2">
           <input v-model="form.title" class="input flex-1 text-base font-medium" maxlength="80" placeholder="标题（留空则取正文第一行）" aria-label="标题" />
           <button type="button" class="btn btn-ghost btn-sm" :aria-pressed="preview" @click="preview = !preview">{{ preview ? '编辑' : '预览' }}</button>
@@ -62,7 +62,7 @@
         </fieldset>
         <div class="flex flex-wrap items-center gap-2">
           <RouterLink v-if="form.document_id" :to="sourceLink" class="btn btn-ghost btn-sm"><BookOpenIcon class="size-4" />打开原文</RouterLink>
-          <span v-if="current" class="text-xs text-slate-400">更新于 {{ formatDateTime(current.updated_at) }}</span>
+          <span v-if="current" class="text-xs text-slate-500">更新于 {{ formatDateTime(current.updated_at) }}</span>
           <div class="ml-auto flex gap-2">
             <button v-if="current" type="button" class="btn btn-ghost text-rose-600 hover:text-rose-700" @click="confirmDelete = true">删除</button>
             <button type="submit" class="btn btn-primary" :disabled="saving || (!form.title.trim() && !form.content.trim())">{{ saving ? '保存中…' : '保存' }}</button>

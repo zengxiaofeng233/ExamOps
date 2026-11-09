@@ -3,7 +3,7 @@
     <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div class="space-y-2 border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" @click="startNew"><PlusIcon class="size-4" />添加网课</button>
-        <p class="text-[11px] leading-4 text-slate-500">保存网课链接、时间戳和笔记。视频在浏览器中打开观看，ExamOps 不嵌入网站。</p>
+        <p class="text-xs text-slate-500">保存网课链接、时间戳和笔记。视频在浏览器中打开观看，ExamOps 不嵌入网站。</p>
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto p-2">
         <p v-if="loading" class="p-3 text-sm text-slate-400">加载中…</p>
@@ -17,7 +17,7 @@
             >
               <p class="truncate text-sm font-medium text-slate-800">{{ item.title }}</p>
               <p class="mt-0.5 truncate text-xs text-slate-500">{{ item.section_title ?? '未关联章节' }}</p>
-              <p class="mt-0.5 flex gap-2 text-[11px] text-slate-400">
+              <p class="mt-0.5 flex gap-2 text-xs text-slate-500">
                 <span>{{ item.marks.length }} 个时间戳</span>
                 <span :class="hasText(item) ? 'text-emerald-600' : 'text-amber-600'">{{ hasText(item) ? '有文字资料' : '无文字资料' }}</span>
               </p>
@@ -28,7 +28,7 @@
     </aside>
 
     <section class="min-w-0 flex-1 overflow-y-auto">
-      <div v-if="form" class="mx-auto max-w-4xl space-y-4 p-5">
+      <div v-if="form" class="mx-auto max-w-4xl space-y-5 p-6">
         <form class="card space-y-3 p-5" novalidate @submit.prevent="save">
           <div class="flex flex-wrap items-center justify-between gap-2">
             <h2 class="section-title">{{ form.id ? '网课信息' : '添加网课' }}</h2>
@@ -121,7 +121,7 @@
               <div class="min-w-0 flex-1 text-sm">
                 <p class="font-medium text-slate-800">{{ mark.label || '（无标题）' }}</p>
                 <p v-if="mark.note" class="text-xs whitespace-pre-wrap text-slate-600">{{ mark.note }}</p>
-                <p v-if="mark.knowledge_point_id" class="text-[11px] text-slate-400">知识点：{{ pointTitle(mark.knowledge_point_id) }}</p>
+                <p v-if="mark.knowledge_point_id" class="text-xs text-slate-500">知识点：{{ pointTitle(mark.knowledge_point_id) }}</p>
               </div>
               <button class="btn btn-ghost btn-sm hover:text-rose-600" title="删除时间戳" @click="removeMark(mark.id)"><TrashIcon class="size-4" /></button>
             </li>

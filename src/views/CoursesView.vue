@@ -1,9 +1,9 @@
 <template>
   <div class="flex h-full flex-col">
-    <header class="flex items-center justify-between gap-4 border-b border-slate-200 bg-surface px-6 py-4">
+    <header class="page-header flex items-center justify-between gap-4">
       <div>
         <h1 class="page-title">我的课程</h1>
-        <p class="mt-0.5 text-sm text-slate-500">每门课程独立管理资料、学习路径和复习记录。</p>
+        <p class="page-subtitle">每门课程独立管理资料、学习路径和复习记录。</p>
       </div>
       <button class="btn btn-primary" @click="openCreate">
         <PlusIcon class="size-4" />创建课程
@@ -38,7 +38,7 @@
             <p v-if="course.exam_date" class="mt-1 text-xs text-indigo-600">{{ examCountdown(course.exam_date) }}（{{ course.exam_date }}）</p>
           </RouterLink>
           <div class="mt-4 flex items-center justify-between gap-2">
-            <span class="text-xs text-slate-400">更新于 {{ formatRelative(course.updated_at) }}</span>
+            <span class="text-xs text-slate-500">更新于 {{ formatRelative(course.updated_at) }}</span>
             <div class="flex gap-1">
               <RouterLink :to="`/courses/${course.id}/documents`" class="btn btn-soft btn-sm">资料</RouterLink>
               <button class="btn btn-ghost btn-sm" @click="openEdit(course)">编辑</button>

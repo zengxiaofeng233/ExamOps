@@ -6,7 +6,7 @@
         <button class="btn btn-primary w-full" :disabled="importing" @click="importFiles">
           <ArrowUpTrayIcon class="size-4" />{{ importing ? '正在导入…' : '导入资料' }}
         </button>
-        <p class="text-[11px] leading-4 text-slate-500">PDF、Word(.docx)、PPT(.pptx)、TXT、Markdown。原文件保持不变；图片文字由本地 OCR 识别。</p>
+        <p class="text-xs text-slate-500">PDF、Word(.docx)、PPT(.pptx)、TXT、Markdown。原文件保持不变；图片文字由本地 OCR 识别。</p>
       </div>
       <p v-if="importStatus" role="status" class="border-b border-slate-100 bg-indigo-50 px-3 py-2 text-xs break-words text-indigo-700">{{ importStatus }}</p>
       <div class="min-h-0 flex-1 overflow-y-auto p-2">

@@ -1,9 +1,9 @@
 <template>
   <div class="h-full overflow-y-auto">
-    <div class="mx-auto max-w-5xl space-y-6 p-6">
+    <div class="mx-auto max-w-5xl space-y-5 p-6">
       <section>
-        <h1 class="text-2xl font-semibold text-slate-900">欢迎使用 ExamOps</h1>
-        <p class="mt-1 text-sm text-slate-500">导入自己的课程资料，按自己的节奏学习、检验和复习。</p>
+        <h1 class="page-title">欢迎使用 ExamOps</h1>
+        <p class="page-subtitle">导入自己的课程资料，按自己的节奏学习、检验和复习。</p>
       </section>
 
       <section v-if="last && lastCourse" class="card flex flex-wrap items-center justify-between gap-4 p-5">
@@ -31,31 +31,31 @@
       <section>
         <div class="mb-3 flex items-center justify-between">
           <h2 class="section-title">我的课程</h2>
-          <RouterLink to="/courses" class="text-sm text-indigo-600 hover:text-indigo-700">全部课程</RouterLink>
+          <RouterLink to="/courses" class="link text-sm">全部课程</RouterLink>
         </div>
         <EmptyState v-if="!courses.sortedCourses.length" class="card" title="还没有课程" description="创建课程后即可导入教材、PPT 等资料。">
           <RouterLink to="/courses" class="btn btn-primary">创建课程</RouterLink>
         </EmptyState>
-        <div v-else class="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           <RouterLink
             v-for="course in courses.sortedCourses.slice(0, 6)"
             :key="course.id"
             :to="`/courses/${course.id}`"
-            class="card flex flex-col p-4 transition-shadow hover:shadow-md"
+            class="card flex flex-col p-5 transition-shadow hover:shadow-md"
           >
-            <p class="truncate font-medium text-slate-900">{{ course.name }}</p>
+            <p class="truncate text-base font-semibold text-slate-900">{{ course.name }}</p>
             <p class="mt-1 line-clamp-2 flex-1 text-xs text-slate-500">{{ course.description || '暂无简介' }}</p>
             <template v-if="digest(course.id)?.points">
               <div class="mt-3 flex h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                 <div class="bg-emerald-500" :style="{ width: `${share(course.id, 'mastered')}%` }" />
                 <div class="bg-sky-400" :style="{ width: `${share(course.id, 'learned') - share(course.id, 'mastered')}%` }" />
               </div>
-              <p class="mt-1 text-[11px] text-slate-500">
+              <p class="mt-1.5 text-xs text-slate-500">
                 {{ digest(course.id)!.points }} 个知识点 · 学过 {{ digest(course.id)!.learned }} · 已掌握 {{ digest(course.id)!.mastered }}
               </p>
             </template>
-            <p v-if="digest(course.id)?.next_step" class="mt-1 truncate text-[11px] text-indigo-600">下一步：{{ digest(course.id)!.next_step }}</p>
-            <p v-if="course.exam_date" class="mt-1 text-[11px] text-slate-400">{{ examCountdown(course.exam_date) }}</p>
+            <p v-if="digest(course.id)?.next_step" class="mt-1.5 truncate text-xs text-indigo-600">下一步：{{ digest(course.id)!.next_step }}</p>
+            <p v-if="course.exam_date" class="mt-1 text-xs text-slate-500">{{ examCountdown(course.exam_date) }}</p>
           </RouterLink>
         </div>
       </section>

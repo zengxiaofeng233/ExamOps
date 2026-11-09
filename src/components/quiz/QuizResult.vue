@@ -1,5 +1,5 @@
 <template>
-  <div class="mx-auto max-w-3xl space-y-4 p-5">
+  <div class="mx-auto max-w-3xl space-y-5 p-6">
     <header class="card p-5">
       <div class="flex flex-wrap items-center gap-5">
         <div class="text-center">
@@ -10,7 +10,7 @@
         <div class="min-w-0 flex-1">
           <h2 class="truncate text-base font-semibold text-slate-900" :title="quiz.title">{{ quiz.title }}</h2>
           <p class="mt-0.5 text-sm text-slate-600">答对 {{ correctCount }}/{{ questions.length }}<template v-if="partialCount"> · 部分正确 {{ partialCount }}</template><template v-if="skippedCount"> · 跳过 {{ skippedCount }}</template></p>
-          <p class="text-xs text-slate-400">{{ formatDateTime(quiz.submitted_at ?? quiz.created_at) }}<template v-if="quiz.model"> · {{ quiz.model }}</template></p>
+          <p class="text-xs text-slate-500">{{ formatDateTime(quiz.submitted_at ?? quiz.created_at) }}<template v-if="quiz.model"> · {{ quiz.model }}</template></p>
         </div>
         <div class="flex flex-wrap gap-2">
           <button v-if="wrongPoints.length" class="btn btn-soft btn-sm" :disabled="busy" @click="emit('retry', wrongPoints)"><ArrowPathIcon class="size-4" />针对错题再练</button>
