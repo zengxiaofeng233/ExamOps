@@ -15,7 +15,7 @@
             {{ MODE_LABELS[item] }}
           </button>
         </div>
-        <p class="text-[11px] leading-4 text-slate-500">{{ MODE_DESCRIPTIONS[mode] }}</p>
+        <p class="text-xs text-slate-500">{{ MODE_DESCRIPTIONS[mode] }}</p>
         <SectionSelect
           v-model="sectionId"
           :sections="sections"
@@ -26,7 +26,7 @@
         <button class="btn btn-primary w-full" :disabled="starting || (mode === 'learn' && !sectionId)" @click="start({ mode, section_id: sectionId })">
           <PlayIcon class="size-4" />{{ starting ? '正在打开…' : '开始' }}
         </button>
-        <p v-if="!sections.length && !loading" class="text-[11px] text-amber-700">
+        <p v-if="!sections.length && !loading" class="text-xs text-amber-700">
           还没有已解析的章节，请先在“资料”中导入教材或课件。
         </p>
       </div>
@@ -47,7 +47,7 @@
               <div v-if="item.mode === 'learn' && item.progress.parts" class="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100" aria-hidden="true">
                 <div class="h-full rounded-full" :class="item.progress.finished ? 'bg-emerald-500' : 'bg-indigo-500'" :style="{ width: `${percent(item)}%` }" />
               </div>
-              <p class="mt-1 text-[11px] text-slate-400">{{ progressText(item) }} · {{ formatRelative(item.updated_at) }}</p>
+              <p class="mt-1 text-xs text-slate-500">{{ progressText(item) }} · {{ formatRelative(item.updated_at) }}</p>
             </button>
             <button
               class="absolute top-2 right-1.5 hidden rounded p-1 text-slate-400 group-hover:block hover:bg-surface hover:text-rose-600"
@@ -128,7 +128,7 @@
 
       <aside v-if="active?.mode === 'learn' && outline.length" class="hidden w-60 shrink-0 overflow-y-auto border-l border-slate-200 bg-surface p-3 lg:block" aria-label="本次学习内容">
         <p class="text-xs font-semibold text-slate-500">本次内容 · 已讲 {{ taughtCount }}/{{ outline.length }}</p>
-        <p class="mt-0.5 text-[11px] text-slate-400">点击任一部分可以直接讲解它</p>
+        <p class="mt-0.5 text-xs text-slate-500">点击任一部分可以直接讲解它</p>
         <ol class="mt-2 space-y-1">
           <li v-for="part in outline" :key="part.index">
             <button
@@ -142,10 +142,10 @@
                 <ForwardIcon v-else-if="part.status === 'skipped'" class="size-3.5 text-slate-400" />
                 <ArrowRightIcon v-else-if="part.status === 'next'" class="size-3.5 text-indigo-600" />
                 第 {{ part.index + 1 }} 部分
-                <span class="ml-auto font-normal text-slate-400">{{ part.chars }} 字</span>
+                <span class="ml-auto font-normal text-slate-500">{{ part.chars }} 字</span>
               </span>
               <span class="mt-0.5 block truncate" :title="part.title">{{ part.title }}</span>
-              <span class="block text-[11px] text-slate-400">{{ part.loc_label }}</span>
+              <span class="block text-xs text-slate-500">{{ part.loc_label }}</span>
             </button>
           </li>
         </ol>

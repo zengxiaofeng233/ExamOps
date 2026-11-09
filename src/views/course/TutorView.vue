@@ -18,7 +18,7 @@
             >
               <p class="truncate text-sm font-medium" :class="item.id === activeId ? 'text-indigo-800' : 'text-slate-800'">{{ item.title || '新对话' }}</p>
               <p class="mt-0.5 truncate text-xs text-slate-500">{{ item.last_message || '暂无消息' }}</p>
-              <p class="text-[11px] text-slate-400">{{ formatRelative(item.updated_at) }}</p>
+              <p class="text-xs text-slate-500">{{ formatRelative(item.updated_at) }}</p>
             </button>
             <button
               class="absolute top-2 right-1.5 hidden rounded p-1 text-slate-400 group-hover:block hover:bg-surface hover:text-rose-600"

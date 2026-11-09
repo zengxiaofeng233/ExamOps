@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full flex-col">
-    <header class="border-b border-slate-200 bg-surface px-6 py-4">
+    <header class="page-header">
       <h1 class="page-title">设置</h1>
     </header>
     <div class="flex min-h-0 flex-1">

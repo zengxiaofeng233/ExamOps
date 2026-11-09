@@ -1,6 +1,6 @@
 <template>
   <aside class="flex w-56 shrink-0 flex-col border-r border-slate-200 bg-surface">
-    <div class="flex items-center gap-2.5 px-4 pt-5 pb-4">
+    <div class="flex items-center gap-2.5 px-5 pt-5 pb-4">
       <div class="flex size-8 items-center justify-center rounded-lg bg-primary text-sm font-bold text-white">E</div>
       <div>
         <p class="text-sm leading-tight font-semibold text-slate-900">ExamOps</p>

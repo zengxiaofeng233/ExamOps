@@ -1,6 +1,6 @@
 <template>
   <div class="flex h-full min-h-0 flex-col">
-    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-surface px-5 py-3">
+    <div class="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-surface px-6 py-3">
       <div class="flex flex-wrap gap-1" role="tablist" aria-label="按状态筛选">
         <button
           v-for="item in filters"
@@ -26,7 +26,7 @@
       </button>
     </div>
 
-    <div class="min-h-0 flex-1 overflow-y-auto px-5 py-4">
+    <div class="min-h-0 flex-1 overflow-y-auto p-6">
       <p v-if="loading" class="text-sm text-slate-400">加载中…</p>
       <EmptyState
         v-else-if="!points.length"
@@ -41,8 +41,8 @@
         <section v-for="group in groups" :key="group.key" :aria-label="group.title">
           <h2 class="mb-2 flex items-baseline gap-2">
             <span class="text-sm font-semibold text-slate-800">{{ group.title }}</span>
-            <span v-if="group.filename" class="truncate text-xs text-slate-400">{{ group.filename }}</span>
-            <span class="text-xs text-slate-400">· {{ group.points.length }} 个</span>
+            <span v-if="group.filename" class="truncate text-xs text-slate-500">{{ group.filename }}</span>
+            <span class="text-xs text-slate-500">· {{ group.points.length }} 个</span>
           </h2>
           <ul class="card divide-y divide-slate-100">
             <li v-for="point in group.points" :key="point.id" class="flex items-start gap-3 px-4 py-3">
@@ -52,10 +52,10 @@
                   <span class="text-sm font-medium text-slate-900">{{ point.title }}</span>
                   <span v-if="point.importance > 1" class="badge" :class="point.importance === 3 ? 'bg-rose-50 text-rose-700' : 'bg-amber-50 text-amber-700'">{{ IMPORTANCE_LABELS[point.importance] }}</span>
                   <span v-if="point.difficult" class="badge bg-orange-50 text-orange-700"><FlagIcon class="size-3" />疑难</span>
-                  <span v-if="point.origin === 'ai'" class="text-[11px] text-slate-400">AI 提取</span>
+                  <span v-if="point.origin === 'ai'" class="text-xs text-slate-500">AI 提取</span>
                 </p>
                 <p v-if="point.summary" class="mt-0.5 line-clamp-2 text-xs text-slate-600">{{ point.summary }}</p>
-                <p class="mt-1 flex flex-wrap gap-x-3 text-[11px] text-slate-400">
+                <p class="mt-1 flex flex-wrap gap-x-3 text-xs text-slate-500">
                   <RouterLink
                     v-if="point.document_id && point.page_start"
                     :to="{ name: 'documents', params: { id: course.id }, query: { doc: point.document_id, page: point.page_start } }"
@@ -115,7 +115,7 @@
             </li>
           </ul>
         </section>
-        <p class="pb-2 text-center text-xs text-slate-400">“学过”表示已经学习过；“已掌握”只能通过测验获得（掌握度 ≥ 80%），两者分开记录。</p>
+        <p class="pb-2 text-center text-xs text-slate-500">“学过”表示已经学习过；“已掌握”只能通过测验获得（掌握度 ≥ 80%），两者分开记录。</p>
       </div>
     </div>
 

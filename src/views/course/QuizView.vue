@@ -19,7 +19,7 @@
                 <span v-if="item.status === 'graded'" class="font-semibold tabular-nums" :class="TONE_TEXT[scoreTone((item.score ?? 0) / 100)]">{{ item.score }}%</span>
                 <span v-else-if="item.status === 'grading'" class="text-amber-600">待批改</span>
                 <span v-else class="text-indigo-600">进行中 {{ item.answered_count }}/{{ item.question_count }}</span>
-                <span class="text-slate-400">{{ item.question_count }} 题 · {{ formatRelative(item.created_at) }}</span>
+                <span class="text-slate-500">{{ item.question_count }} 题 · {{ formatRelative(item.created_at) }}</span>
               </p>
             </button>
             <button
@@ -44,7 +44,7 @@
         <QuizRunner v-if="detail.quiz.status === 'ready'" :key="detail.quiz.id" :detail="detail" :busy="working" @submit="submit" />
         <QuizResult v-else :detail="detail" :busy="grading" @regrade="regrade" @self-grade="selfGrade" @retry="retryPoints" />
       </template>
-      <div v-else class="mx-auto max-w-3xl p-5">
+      <div v-else class="mx-auto max-w-3xl p-6">
         <QuizCreator
           :course-id="course.id"
           :sections="sections"
