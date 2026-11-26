@@ -2,7 +2,6 @@
   <form class="card space-y-4 p-5" novalidate @submit.prevent="create">
     <div>
       <h2 class="section-title">新建小测</h2>
-      <p class="mt-0.5 text-sm text-slate-500">AI 根据你的资料出题，结果会记入知识点掌握度并安排复习。</p>
     </div>
 
     <div>
@@ -65,10 +64,10 @@
     </label>
 
     <p v-if="!models.configured && models.loaded" class="text-sm text-amber-700">
-      尚未配置 AI 模型。<RouterLink to="/settings?section=models" class="underline">前往设置</RouterLink>
+      还没配置 AI 模型，<RouterLink to="/settings?section=models" class="underline">前往设置</RouterLink>
     </p>
     <p v-if="busy" class="flex items-center gap-2 text-sm text-indigo-700" role="status">
-      <ArrowPathIcon class="size-4 animate-spin" />AI 正在阅读资料并出题，通常需要十几秒到一分钟…
+      <ArrowPathIcon class="size-4 animate-spin" />AI 正在根据资料出题，通常需要十几秒到一分钟，请不要关闭窗口…
     </p>
     <div class="flex justify-end">
       <button type="submit" class="btn btn-primary" :disabled="!canCreate">

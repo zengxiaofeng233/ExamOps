@@ -2,15 +2,14 @@
   <div class="h-full overflow-y-auto">
     <div class="mx-auto max-w-5xl space-y-5 p-6">
       <section>
-        <h1 class="page-title">欢迎使用 ExamOps</h1>
-        <p class="page-subtitle">导入自己的课程资料，按自己的节奏学习、检验和复习。</p>
+        <h1 class="page-title">今天想学哪门课？</h1>
       </section>
 
       <section v-if="last && lastCourse" class="card flex flex-wrap items-center justify-between gap-4 p-5">
         <div class="min-w-0">
           <p class="text-xs font-medium text-indigo-600">继续上次学习</p>
           <p class="mt-1 truncate text-base font-semibold text-slate-900">{{ lastCourse.name }}</p>
-          <p class="text-xs text-slate-500">{{ last.saved_at ? `上次学习：${formatRelative(last.saved_at)}` : '' }}</p>
+          <p v-if="last.saved_at" class="text-xs text-slate-500">{{ formatRelative(last.saved_at) }}</p>
         </div>
         <RouterLink :to="last.path" class="btn btn-primary">继续</RouterLink>
       </section>

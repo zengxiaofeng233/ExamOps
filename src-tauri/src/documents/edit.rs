@@ -48,7 +48,7 @@ pub(super) fn validate_locked(conn: &Connection, id: i64, extraction: &Extractio
         match (before, after) { (Some(a), Some(b)) => raw(a) == raw(b), (None, None) => true, _ => false }
     }));
     if !same_layout || !same_anchors {
-        return Err(AppError::invalid("原文块位置已变化，无法可靠保持锁定章节；已保留原结果。请先解锁章节再重新解析。"));
+        return Err(AppError::invalid("资料内容有变动，请先解锁章节再重新解析。"));
     }
     Ok(())
 }
@@ -90,15 +90,15 @@ pub fn apply(conn: &mut Connection, document_id: i64, section_id: i64, edit: Sec
             let split = (page, block as i64);
             if split <= (section.page_start, section.block_start) || split > (section.page_end, section.block_end)
                 || !pages.iter().any(|p| p.number == page && p.blocks.get(block).is_some_and(|b| b.kind != "synthetic" && !b.text.trim().is_empty())) {
-                return Err(AppError::invalid("拆分位置必须是本节首块之后的正文块"));
+                return Err(AppError::invalid("不能从当前节的第一段拆分，请选择后面的段落"));
             }
             let children: Vec<_> = sections.iter().filter(|s| s.parent_id == Some(section_id)).collect();
             if children.iter().any(|s| (s.page_start, s.block_start) < split && split <= (s.page_end, s.block_end)) {
-                return Err(AppError::invalid("此位置位于子章节内部，请先选中该子章节拆分"));
+                return Err(AppError::invalid("所选位置在子章节内部，请先选中该子章节再拆分"));
             }
             let previous = if block > 0 { (page, block as i64 - 1) } else {
                 let p = pages.iter().take_while(|p| p.number < page).last()
-                    .ok_or_else(|| AppError::invalid("拆分位置无前置正文"))?;
+                    .ok_or_else(|| AppError::invalid("所选位置前面没有正文，无法拆分"))?;
                 (p.number, p.blocks.len().saturating_sub(1) as i64)
             };
             tx.execute("UPDATE document_sections SET ordinal=ordinal+1 WHERE document_id=?1 AND ordinal>?2", params![document_id, section.ordinal])?;

@@ -21,8 +21,8 @@ const API: &str = "https://api.bilibili.com";
 const PASSPORT: &str = "https://passport.bilibili.com/x/passport-login/web/qrcode";
 const SECRET: &str = "bilibili-session";
 const MAX_BYTES: usize = 8 * 1024 * 1024;
-pub const SUBTITLE_HEADER: &str = "【B站字幕】";
-pub const SUMMARY_HEADER: &str = "【B站 AI 总结（非完整字幕）】";
+pub const SUBTITLE_HEADER: &str = "【B 站字幕】";
+pub const SUMMARY_HEADER: &str = "【B 站 AI 总结（非完整字幕）】";
 
 pub struct BilibiliState {
     secrets: Arc<dyn SecretStore>,
@@ -68,18 +68,18 @@ fn client() -> AppResult<Client> {
         .user_agent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/130.0.0.0 Safari/537.36")
         .timeout(Duration::from_secs(20))
         .redirect(reqwest::redirect::Policy::none())
-        .build().map_err(|_| AppError::msg("无法初始化 B 站连接"))
+        .build().map_err(|_| AppError::msg("无法连接 B 站，请检查网络后再试"))
 }
 
 fn network_error(_: reqwest::Error) -> AppError {
     // reqwest errors can contain a signed subtitle URL or a login key.
-    AppError::msg("连接 B 站失败或超时，请稍后重试")
+    AppError::msg("连接 B 站超时或失败，请检查网络后再试")
 }
 
 async fn json(mut response: Response) -> AppResult<Value> {
     if !response.status().is_success() {
         return Err(AppError::msg(format!(
-            "B 站暂时拒绝访问（HTTP {}），请稍后重试",
+            "B 站暂时限制访问（HTTP {}），请稍后再试或手动粘贴字幕",
             response.status().as_u16()
         )));
     }
@@ -91,7 +91,7 @@ async fn json(mut response: Response) -> AppResult<Value> {
         bytes.extend_from_slice(&chunk);
     }
     serde_json::from_slice(&bytes)
-        .map_err(|_| AppError::msg("B 站返回了无法识别的内容，请稍后重试"))
+        .map_err(|_| AppError::msg("未能读取 B 站返回的内容，请稍后再试"))
 }
 
 async fn request(client: &Client, url: &str, cookie: Option<&str>) -> AppResult<Value> {
@@ -111,13 +111,13 @@ fn data(value: &Value) -> AppResult<&Value> {
             "此内容需要登录 B 站，或登录已过期，请扫码登录后重试",
         )),
         Some(-352 | -412 | -403) => Err(AppError::msg(
-            "B 站暂时限制了访问，请稍后重试，或手动粘贴字幕",
+            "B 站暂时限制访问，请稍后再试或手动粘贴字幕",
         )),
         Some(-404 | 62002) => Err(AppError::msg("视频不存在或当前账号无权访问")),
         Some(code) => Err(AppError::msg(format!(
-            "B 站未能提供内容（代码 {code}），请稍后重试"
+            "B 站没返回内容（代码 {code}），请稍后再试或手动粘贴字幕"
         ))),
-        None => Err(AppError::msg("B 站响应格式已变化，暂时无法读取")),
+        None => Err(AppError::msg("未能读取 B 站内容，请手动粘贴字幕")),
     }
 }
 
@@ -588,11 +588,11 @@ async fn fetch_inner(state: &BilibiliState, input: &str) -> AppResult<VideoText>
     let title = if view["pages"].as_array().is_some_and(|p| p.len() > 1) {
         format!(
             "{} · P{page} {}",
-            view["title"].as_str().unwrap_or("B站网课"),
+            view["title"].as_str().unwrap_or("B 站网课"),
             selected["part"].as_str().unwrap_or("")
         )
     } else {
-        view["title"].as_str().unwrap_or("B站网课").into()
+        view["title"].as_str().unwrap_or("B 站网课").into()
     };
     let nav = request(&client, &format!("{API}/x/web-interface/nav"), cookie).await?;
     // Anonymous nav has code -101 but still supplies public WBI signing keys.

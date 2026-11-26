@@ -75,11 +75,11 @@ fn reject_link(path: &Path) -> AppResult<()> {
     {
         use std::os::windows::fs::MetadataExt;
         if metadata.file_attributes() & 0x400 != 0 {
-            return Err(AppError::msg("数据迁移不支持符号链接或目录联接，请选择普通本机文件夹"));
+            return Err(AppError::msg("不支持快捷方式或特殊映射文件夹，请选择本机磁盘上的普通文件夹"));
         }
     }
     if metadata.file_type().is_symlink() {
-        return Err(AppError::msg("数据迁移不支持符号链接"));
+        return Err(AppError::msg("不支持快捷方式，请选择普通文件夹"));
     }
     Ok(())
 }
@@ -110,7 +110,7 @@ fn stamp(root: &Path, path: &Path) -> AppResult<Stamp> {
         context.consume(&buffer[..count]);
         bytes += count as u64;
     }
-    Ok(Stamp { path: path.strip_prefix(root).map_err(|_| AppError::msg("数据路径越界"))?.into(), bytes, digest: format!("{:x}", context.compute()) })
+    Ok(Stamp { path: path.strip_prefix(root).map_err(|_| AppError::msg("所选路径无法访问，请重新选择文件夹"))?.into(), bytes, digest: format!("{:x}", context.compute()) })
 }
 
 fn collect(root: &Path, path: &Path, files: &mut Vec<Stamp>) -> AppResult<()> {

@@ -23,10 +23,10 @@ watch([html, () => props.sources], async () => {
   root.value?.querySelectorAll<HTMLElement>('button.cite').forEach((button) => {
     const source = props.sources?.find(s => s.label === button.dataset.cite)
     if (source) {
-      button.title = `${source.filename}${source.section_title ? ` · ${source.section_title}` : ''} · ${source.loc_label}\n${source.excerpt}`
+      button.title = `${source.filename}${source.section_title ? ` · ${source.section_title}` : ''} · ${source.loc_label}`
       button.classList.remove('cite-missing')
     } else {
-      button.title = '资料中没有这个来源编号（AI 引用有误）'
+      button.title = '资料中没有这个来源编号'
       button.classList.add('cite-missing')
     }
   })

@@ -26,7 +26,7 @@
       <div v-if="quiz.pending" class="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800" role="status">
         <p>{{ quiz.pending }} 道主观题还没有评分<template v-if="quiz.grading_error">：{{ quiz.grading_error }}</template>。</p>
         <p class="mt-1 text-xs">可以重新让 AI 批改，或对照参考答案自己评分。全部评分后才会更新掌握度和复习计划。</p>
-        <button class="btn btn-secondary btn-sm mt-2" :disabled="busy" @click="emit('regrade')"><ArrowPathIcon class="size-4" :class="busy ? 'animate-spin' : ''" />重新 AI 批改</button>
+        <button class="btn btn-secondary btn-sm mt-2" :disabled="busy" @click="emit('regrade')"><ArrowPathIcon class="size-4" :class="busy ? 'animate-spin' : ''" />重新批改</button>
       </div>
     </header>
 
@@ -37,7 +37,7 @@
           <span class="min-w-40 flex-1 truncate text-sm font-medium text-slate-800">{{ item.title }}</span>
           <span class="text-xs text-slate-500">本次 {{ percent(item.result) }}</span>
           <span class="flex items-center gap-1.5 text-xs text-slate-500">
-            <template v-if="item.before !== null">{{ percent(item.before) }} →</template>
+            <template v-if="item.before !== null">{{ percent(item.before) }} 到</template>
             <MasteryBar :score="item.after" compact />
           </span>
           <span class="badge" :class="POINT_STATUS_CLASSES[item.status as PointStatus] ?? ''">{{ POINT_STATUS_LABELS[item.status as PointStatus] ?? item.status }}</span>

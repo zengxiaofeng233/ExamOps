@@ -35,7 +35,7 @@
         </button>
       </div>
     </div>
-    <p class="px-4 pb-2 text-xs text-slate-500">可拖入或粘贴图片 · JPG / PNG / WebP · 最多 4 张，每张 5 MB · 需使用支持图片的模型</p>
+    <p class="px-4 pb-2 text-xs text-slate-500">支持拖入或粘贴图片（JPG / PNG / WebP，最多 4 张，每张不超过 5 MB）</p>
     <p v-if="error" role="alert" class="px-4 pb-3 text-xs text-rose-600">{{ error }}</p>
   </form>
 </template>

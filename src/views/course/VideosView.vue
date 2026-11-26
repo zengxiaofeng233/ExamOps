@@ -3,7 +3,7 @@
     <aside class="flex w-64 shrink-0 flex-col border-r border-slate-200 bg-surface">
       <div class="space-y-2 border-b border-slate-100 p-3">
         <button class="btn btn-primary w-full" @click="startNew"><PlusIcon class="size-4" />添加网课</button>
-        <p class="text-xs text-slate-500">保存网课链接、时间戳和笔记。视频在浏览器中打开观看，ExamOps 不嵌入网站。</p>
+        <p class="text-xs text-slate-500">保存网课链接、时间戳和笔记，视频在系统浏览器中打开。</p>
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto p-2">
         <p v-if="loading" class="p-3 text-sm text-slate-400">加载中…</p>
@@ -36,7 +36,7 @@
               <RouterLink
                 :to="{ name: 'learn', params: { id: course.id }, query: { mode: 'learn', resource: current.id } }"
                 class="btn btn-soft btn-sm"
-                :title="hasText(current) ? '' : '还没有字幕、总结或笔记，AI 无法讲解视频内容'"
+                :title="hasText(current) ? '' : '需先填写字幕、总结或笔记'"
               >
                 <AcademicCapIcon class="size-4" />AI 学习这节网课
               </RouterLink>
@@ -96,13 +96,13 @@
               v-model="form.transcript"
               class="input font-mono text-xs"
               rows="8"
-              placeholder="B 站链接会尝试读取字幕或 AI 总结，也可手动粘贴。AI 讲解网课时只使用已保存的文字和笔记。"
+              placeholder="B 站链接会自动读取字幕或 AI 总结，也可手动粘贴"
             />
             <p class="hint">{{ form.transcript.length.toLocaleString() }} 字{{ transcriptParts ? `，AI 会分 ${transcriptParts} 部分讲解` : '' }}</p>
           </div>
           <div>
             <label class="label" for="video-notes">学习笔记</label>
-            <textarea id="video-notes" v-model="form.notes" class="input" rows="4" placeholder="记录老师讲的重点、例题、你的疑问…" />
+            <textarea id="video-notes" v-model="form.notes" class="input" rows="4" placeholder="记录重点、例题或疑问" />
           </div>
           <div class="flex justify-end gap-2">
             <button v-if="!form.id" type="button" class="btn btn-secondary" @click="cancelNew">取消</button>
@@ -115,7 +115,7 @@
           <p class="mt-0.5 text-xs text-slate-500">标记视频里的重点位置，点击时间可在浏览器中从该处播放（B 站、YouTube 支持）。</p>
           <ul v-if="current.marks.length" class="mt-3 divide-y divide-slate-100">
             <li v-for="mark in current.marks" :key="mark.id" class="flex items-start gap-3 py-2">
-              <button class="shrink-0 rounded bg-indigo-50 px-2 py-0.5 font-mono text-xs font-semibold text-indigo-700 hover:bg-indigo-100" :title="current.url ? '在浏览器中从这里播放' : ''" @click="current.url && openUrl(urlAt(current.url, mark.seconds))">
+              <button class="shrink-0 rounded bg-indigo-50 px-2 py-0.5 font-mono text-xs font-semibold text-indigo-700 hover:bg-indigo-100" :title="current.url ? '在浏览器中从该时间点播放' : ''" @click="current.url && openUrl(urlAt(current.url, mark.seconds))">
                 {{ formatSeconds(mark.seconds) }}
               </button>
               <div class="min-w-0 flex-1 text-sm">
@@ -146,9 +146,9 @@
 
     <ConfirmDialog
       :open="confirmDelete"
-      title="删除网课"
-      :message="`确定删除“${current?.title}”及其时间戳和笔记吗？`"
-      confirm-text="删除"
+      title="删除这节网课？"
+      :message="`确定删除“${current?.title}”及其时间戳和笔记？`"
+      confirm-text="删除网课"
       danger
       @cancel="confirmDelete = false"
       @confirm="remove"

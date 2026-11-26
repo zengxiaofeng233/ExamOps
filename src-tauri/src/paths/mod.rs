@@ -270,7 +270,7 @@ fn validate_step(conn: &Connection, course_id: i64, input: &mut StepInput) -> Ap
         }
     }
     if let Some(resource) = input.resource_id {
-        let course: i64 = conn.query_row("SELECT course_id FROM resources WHERE id = ?1", [resource], |r| r.get(0)).or_not_found("网课资源")?;
+        let course: i64 = conn.query_row("SELECT course_id FROM resources WHERE id = ?1", [resource], |r| r.get(0)).or_not_found("网课")?;
         if course != course_id {
             return Err(AppError::invalid("网课不属于该课程"));
         }
@@ -752,7 +752,7 @@ mod tests {
                     block.heading = Some(1);
                     block.source = Some("topic".into());
                     block.kind = "synthetic".into();
-                    block.text = format!("主题学习单元 {}", page.number);
+                    block.text = format!("内容片段 {}", page.number);
                 }
             }
         }
@@ -760,7 +760,7 @@ mod tests {
         let detail = from_template(&mut conn, TemplateInput { course_id: 1, name: None, mode: None, document_ids: vec![1], include_quiz: false }).unwrap();
         let reads: Vec<_> = detail.steps.iter().filter(|s| s.kind == "read_text").collect();
         assert_eq!(reads.len(), 3);
-        assert!(reads.iter().all(|s| s.section_id.is_some() && s.title.contains("主题学习单元")));
+        assert!(reads.iter().all(|s| s.section_id.is_some() && s.title.contains("内容片段")));
         drop(conn);
         test_support::cleanup(paths);
     }

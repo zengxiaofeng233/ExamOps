@@ -10,8 +10,8 @@
     </button>
     <button type="button" class="btn btn-ghost btn-sm" :disabled="updates.phase === 'installing'" @click="updates.openRelease">手动下载</button>
     <p v-if="updates.downloadError" class="w-full break-words text-xs text-rose-600" role="alert">{{ updates.downloadError }}</p>
-  <ConfirmDialog :open="confirmInstall" title="安装更新" confirm-text="安装并重启"
-    message="安装将关闭 ExamOps，完成后重新打开。请先保存正在编辑的内容，并等待 AI 回答完成。课程、资料、笔记和设置会保留。"
+  <ConfirmDialog :open="confirmInstall" title="现在安装更新并重启？" confirm-text="安装并重启"
+    message="安装将关闭并在完成后重开 ExamOps，请先保存编辑内容并等待 AI 回答结束。课程、资料、笔记和设置都会保留。"
     @cancel="confirmInstall = false" @confirm="install" />
   </div>
 </template>

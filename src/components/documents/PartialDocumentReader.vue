@@ -1,8 +1,8 @@
 <template>
   <section class="flex min-h-0 flex-1 flex-col bg-slate-50">
     <p class="border-b border-slate-200 bg-surface px-5 py-3 text-sm text-slate-600" role="status">
-      {{ document.status === 'failed' ? '解析中断，已完成内容已保留。点击“重新解析”可继续。' : document.status === 'pending' ? '已加入处理队列，重新打开软件也会自动继续。' : '正在后台识别，可先阅读已完成页面。' }}
-      <span v-if="document.completed_units">已完成 {{ document.completed_units }}/{{ document.total_units || '—' }} 个单元。</span>
+      {{ document.status === 'failed' ? '解析中断，已完成内容已保留，可点“重新解析”继续。' : document.status === 'pending' ? '已加入处理队列，重新打开软件也会继续。' : '正在后台识别，可先阅读已完成页面。' }}
+      <span v-if="document.completed_units">已完成 {{ document.completed_units }}/{{ document.total_units || '—' }} {{ document.loc_kind === 'slide' ? '张幻灯片' : document.loc_kind === 'paragraph' ? '段' : document.loc_kind === 'line' ? '部分' : '页' }}。</span>
       搜索、AI 和章节编辑将在整份解析完成后开放。
     </p>
     <p v-if="document.error && document.status === 'failed'" class="px-5 py-2 text-sm text-rose-700" role="alert">{{ document.error }}</p>

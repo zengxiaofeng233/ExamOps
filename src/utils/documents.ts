@@ -24,7 +24,7 @@ export const STRUCTURE_LABELS: Record<string, string> = {
   patterns: '按编号格式（如“第三章”“3.2”）识别章节',
   layout: '按字号版式识别章节',
   mixed: '合并书签与正文标题识别章节',
-  topic: '无标题资料：按词汇主题生成学习单元（可调整）',
+  topic: '未识别到标题，已按内容自动分段（可手动调整）',
   none: '未识别到章节，保留完整正文',
   legacy: '旧版本导入，重新解析后可识别章节和图片',
   '': '尚未解析'
@@ -38,7 +38,7 @@ export const UNIT_NAMES: Record<LocKind, string> = {
 }
 
 export function unitCount(document: Pick<Document, 'loc_kind' | 'page_count'>): string {
-  const unit = document.loc_kind === 'line' ? '个文本块' : UNIT_NAMES[document.loc_kind]
+  const unit = document.loc_kind === 'line' ? '段' : UNIT_NAMES[document.loc_kind]
   return `${document.page_count} ${unit}`
 }
 

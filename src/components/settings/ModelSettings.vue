@@ -4,7 +4,7 @@
       <div class="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 class="section-title">AI 模型</h2>
-          <p class="mt-1 text-sm text-slate-500">使用你自己的 API（BYOK）。只有在你提问、生成小测等主动操作时才会联网调用。</p>
+          <p class="mt-1 text-sm text-slate-500">使用你自己的 API Key。只有在你提问、出题等主动操作时才会联网。</p>
         </div>
         <button class="btn btn-primary" @click="edit(null)"><PlusIcon class="size-4" />添加模型</button>
       </div>
@@ -16,13 +16,13 @@
             <p class="flex items-center gap-2 text-sm font-medium text-slate-900">
               {{ profile.name }}
               <span v-if="profile.is_default" class="badge bg-indigo-50 text-indigo-700">默认</span>
-              <span v-if="profile.key_storage === 'local'" class="badge bg-amber-50 text-amber-700" title="系统凭据管理器不可用，密钥保存在本机数据库">密钥本地保存</span>
+              <span v-if="profile.key_storage === 'local'" class="badge bg-amber-50 text-amber-700" title="系统凭据管理器不可用，API Key 保存在本机数据库">API Key 本地保存</span>
             </p>
             <p class="mt-0.5 truncate text-xs text-slate-500">{{ profile.model }} · {{ profile.base_url }}</p>
-            <p class="text-xs text-slate-400">上下文预算 {{ profile.context_window.toLocaleString() }} · 最大输出 {{ profile.max_output_tokens.toLocaleString() }} · {{ profile.has_key ? `密钥 ${profile.key_hint ?? ''}` : '未设置密钥' }}</p>
+            <p class="text-xs text-slate-400">上下文预算 {{ profile.context_window.toLocaleString() }} tokens · 最大输出 {{ profile.max_output_tokens.toLocaleString() }} tokens · {{ profile.has_key ? `API Key ${profile.key_hint ?? ''}` : '未填 API Key' }}</p>
           </div>
           <div class="flex gap-1">
-            <button class="btn btn-ghost btn-sm" :disabled="busy === profile.id" @click="test(profile)">{{ busy === profile.id ? '测试中…' : '测试' }}</button>
+            <button class="btn btn-ghost btn-sm" :disabled="busy === profile.id" @click="test(profile)">{{ busy === profile.id ? '测试中…' : '测试连接' }}</button>
             <button v-if="!profile.is_default" class="btn btn-ghost btn-sm" @click="makeDefault(profile)">设为默认</button>
             <button class="btn btn-ghost btn-sm" @click="edit(profile)">编辑</button>
             <button class="btn btn-ghost btn-sm text-rose-600 hover:text-rose-700" @click="removing = profile">删除</button>
@@ -33,7 +33,7 @@
 
     <section class="card p-5">
       <h2 class="section-title">上下文策略</h2>
-      <p class="mt-1 text-sm text-slate-500">决定 AI 回答时能看到多少资料。新对话默认使用这里的设置，也可以在对话中单独切换。</p>
+      <p class="mt-1 text-sm text-slate-500">决定 AI 回答时能参考多少资料，可在具体对话中单独切换。</p>
       <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
         <label v-for="option in CONTEXT_OPTIONS" :key="option.value"
           class="flex cursor-pointer flex-col rounded-lg border p-3 text-sm"
@@ -46,13 +46,13 @@
       </div>
       <div class="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <div>
-          <label class="label" for="c-topk">检索片段数</label>
+          <label class="label" for="c-topk">每次检索参考片段数</label>
           <input id="c-topk" v-model.number="form.rag_top_k" type="number" min="2" max="30" class="input" @change="saveContext" />
         </div>
         <div>
-          <label class="label" for="c-ratio">全文模式阈值 {{ Math.round(form.full_ratio * 100) }}%</label>
+          <label class="label" for="c-ratio">自动发送全文的上限 {{ Math.round(form.full_ratio * 100) }}%</label>
           <input id="c-ratio" v-model.number="form.full_ratio" type="range" min="0.2" max="1" step="0.05" class="w-full accent-indigo-600" @change="saveContext" />
-          <p class="hint">资料占上下文预算不超过该比例时，自动模式发送全文。</p>
+          <p class="hint">资料占上下文预算不超过该比例时，自动发送全文。</p>
         </div>
         <div>
           <label class="label" for="c-history">携带历史轮数</label>
@@ -66,7 +66,7 @@
       <dl class="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
         <div><dt class="text-xs text-slate-500">今日输入</dt><dd class="text-lg font-semibold">{{ usage.today_prompt.toLocaleString() }}</dd></div>
         <div><dt class="text-xs text-slate-500">今日输出</dt><dd class="text-lg font-semibold">{{ usage.today_completion.toLocaleString() }}</dd></div>
-        <div><dt class="text-xs text-slate-500">累计 tokens</dt><dd class="text-lg font-semibold">{{ (usage.total_prompt + usage.total_completion).toLocaleString() }}</dd></div>
+        <div><dt class="text-xs text-slate-500">累计 Token</dt><dd class="text-lg font-semibold">{{ (usage.total_prompt + usage.total_completion).toLocaleString() }}</dd></div>
         <div><dt class="text-xs text-slate-500">请求次数</dt><dd class="text-lg font-semibold">{{ usage.requests }}</dd></div>
       </dl>
       <p class="hint mt-2">接口未返回用量时按字数估算。</p>
@@ -75,9 +75,9 @@
     <ProfileDialog :open="dialogOpen" :profile="editing" @close="dialogOpen = false" @saved="onSaved" />
     <ConfirmDialog
       :open="!!removing"
-      title="删除 AI 模型"
-      :message="`确定删除“${removing?.name}”吗？保存在系统凭据管理器中的密钥也会被删除。`"
-      confirm-text="删除"
+      title="删除这个 AI 模型？"
+      :message="`确定删除“${removing?.name}”？保存在系统凭据管理器中的 API Key 也会一并删除。`"
+      confirm-text="删除模型"
       danger
       @cancel="removing = null"
       @confirm="remove"

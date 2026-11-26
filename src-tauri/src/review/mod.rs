@@ -67,7 +67,7 @@ pub fn recommendations(conn: &Connection, course_id: i64, today: NaiveDate) -> A
     let untested: Vec<_> = items.iter().filter(|i| i.reason == "untested").take(6).collect();
     if !untested.is_empty() {
         let names: Vec<String> = untested.iter().map(|i| i.point.title.clone()).collect();
-        let mut next = action("point_quiz", format!("检验刚学过的 {} 个知识点", summary.untested), format!("{}。学过不等于掌握，做个小测确认一下。", titles(&names)));
+        let mut next = action("point_quiz", format!("检验刚学过的 {} 个知识点", summary.untested), format!("{}。做个小测确认是否掌握。", titles(&names)));
         next.knowledge_point_ids = untested.iter().map(|i| i.point.id).collect();
         out.push(next);
     }

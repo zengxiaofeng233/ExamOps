@@ -32,7 +32,7 @@
       </div>
 
       <template v-if="way === 'template'">
-        <p class="text-sm text-slate-600">按资料的章节顺序自动生成步骤，例如“阅读教材 → 观看关联网课 → AI 讲解 → 小测”，生成后可以随意调整。</p>
+        <p class="text-sm text-slate-600">按资料章节顺序自动生成阅读、网课、AI 讲解和小测步骤，生成后可随意调整。</p>
         <div v-if="documents.length > 1">
           <p class="label">跟随哪些资料（不选则全部）</p>
           <div class="max-h-40 space-y-1 overflow-y-auto rounded-lg border border-slate-200 p-2">
@@ -52,7 +52,7 @@
       </template>
 
       <template v-else-if="way === 'ai'">
-        <p class="text-sm text-slate-600">AI 会根据你的资料目录、网课、知识点学习状态和考试日期，推荐一条学习路径。推荐的每一步都会校验，只保留能对应到你资料的步骤。</p>
+        <p class="text-sm text-slate-600">AI 会结合你的资料目录、网课、知识点状态和考试日期生成学习路径，生成后可随意调整。</p>
         <div>
           <label class="label" for="path-preferences">你的要求（可选）</label>
           <textarea
@@ -65,7 +65,7 @@
           />
         </div>
         <p v-if="!models.configured && models.loaded" class="text-sm text-amber-700">
-          尚未配置 AI 模型。<RouterLink to="/settings?section=models" class="underline">前往设置</RouterLink>
+          还没配置 AI 模型，<RouterLink to="/settings?section=models" class="underline">前往设置</RouterLink>
         </p>
       </template>
 

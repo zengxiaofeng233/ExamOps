@@ -6,7 +6,7 @@
         <button class="btn btn-primary w-full" :disabled="importing" @click="importFiles">
           <ArrowUpTrayIcon class="size-4" />{{ importing ? '正在导入…' : '导入资料' }}
         </button>
-        <p class="text-xs text-slate-500">PDF、Word(.docx)、PPT(.pptx)、TXT、Markdown。原文件保持不变；图片文字由本地 OCR 识别。</p>
+        <p class="text-xs text-slate-500">支持 PDF、Word、PPT、TXT、Markdown，不改动原文件；图片文字由本地 OCR 识别。</p>
       </div>
       <p v-if="importStatus" role="status" class="border-b border-slate-100 bg-indigo-50 px-3 py-2 text-xs break-words text-indigo-700">{{ importStatus }}</p>
       <div class="min-h-0 flex-1 overflow-y-auto p-2">
@@ -76,8 +76,8 @@
           @delete="confirmDelete = true"
           @visible-page="rememberPage"
         />
-        <EmptyState v-else-if="documents.length" title="选择一份资料开始阅读" description="左侧列表中的资料解析完成后，可按章节阅读并查看原页面。" />
-        <EmptyState v-else-if="!loading" title="导入第一份资料" description="支持 PDF、Word、PPT、TXT 和 Markdown。导入后会自动识别章节，可以阅读、检索，并让 AI 按章节讲解。">
+        <EmptyState v-else-if="documents.length" title="选择一份资料开始阅读" />
+        <EmptyState v-else-if="!loading" title="还没有资料" description="导入教材、课件或笔记后即可开始学习。">
           <button class="btn btn-primary" :disabled="importing" @click="importFiles"><ArrowUpTrayIcon class="size-4" />导入资料</button>
         </EmptyState>
       </div>
@@ -85,9 +85,9 @@
 
     <ConfirmDialog
       :open="confirmDelete"
-      title="删除资料"
-      :message="`确定删除“${selected?.filename}”吗？\n应用内副本、提取正文、章节和图片将一并删除，你电脑上的原文件不受影响。`"
-      confirm-text="删除"
+      title="删除这份资料？"
+      :message="`确定删除“${selected?.filename}”？\n应用内副本、提取正文、章节和图片将一并删除，原文件不受影响。`"
+      confirm-text="删除资料"
       danger
       :busy="deleting"
       @cancel="confirmDelete = false"
@@ -255,7 +255,10 @@ function badgeClass(document: Document) {
 
 function progressText(id: number) {
   const doc = documents.value.find(d => d.id === id)
-  if (doc?.total_units) return `已完成 ${doc.completed_units ?? 0}/${doc.total_units} 个单元，可先阅读`
+  if (doc?.total_units) {
+    const unit = doc.loc_kind === 'slide' ? '张幻灯片' : doc.loc_kind === 'paragraph' ? '段' : doc.loc_kind === 'line' ? '部分' : '页'
+    return `已完成 ${doc.completed_units ?? 0}/${doc.total_units} ${unit}，可先阅读`
+  }
   const p = progress[id]
   if (!p || !p.total) return '正在解析…'
   const unit = p.stage === 'slide' ? '张幻灯片' : p.stage === 'paragraph' ? '段' : UNIT_NAMES.page

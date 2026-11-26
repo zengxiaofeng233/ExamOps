@@ -111,7 +111,7 @@
                   <button class="btn btn-secondary btn-sm" @click="setStatus(step, 'done')"><CheckIcon class="size-3.5" />完成</button>
                   <button class="btn btn-ghost btn-sm" @click="setStatus(step, 'skipped')">跳过</button>
                 </template>
-                <button v-else class="btn btn-ghost btn-sm" @click="setStatus(step, 'todo')"><ArrowUturnLeftIcon class="size-3.5" />恢复为待完成</button>
+                <button v-else class="btn btn-ghost btn-sm" @click="setStatus(step, 'todo')"><ArrowUturnLeftIcon class="size-3.5" />标为未完成</button>
               </div>
             </div>
             <div class="flex shrink-0 flex-col gap-0.5">
@@ -128,9 +128,8 @@
           </li>
         </ol>
         <button v-if="detail.steps.length" class="btn btn-secondary w-full" @click="addStep(null)"><PlusIcon class="size-4" />添加步骤</button>
-        <p v-if="detail.steps.length > 1" class="text-center text-xs text-slate-500">拖动步骤或使用上下箭头调整顺序</p>
       </div>
-      <EmptyState v-else-if="!loading" title="选择或新建一条学习路径" description="学习路径由你来定：可以按章节、按网课、按考点，随时调整顺序和内容。">
+      <EmptyState v-else-if="!loading" title="选择或新建一条学习路径" description="按章节、网课或考点安排学习步骤。">
         <button class="btn btn-primary" @click="creating = true">新建学习路径</button>
       </EmptyState>
     </section>
@@ -173,18 +172,18 @@
     </AppModal>
     <ConfirmDialog
       :open="confirmDelete"
-      title="删除学习路径"
-      :message="`确定删除“${detail?.path.name}”及其全部步骤吗？知识点的学习状态不受影响。`"
-      confirm-text="删除"
+      title="删除这条学习路径？"
+      :message="`确定删除“${detail?.path.name}”及其全部步骤？知识点的学习状态不受影响。`"
+      confirm-text="删除路径"
       danger
       @cancel="confirmDelete = false"
       @confirm="removePath"
     />
     <ConfirmDialog
       :open="!!removingStep"
-      title="删除步骤"
-      :message="`确定删除步骤“${removingStep?.title}”吗？`"
-      confirm-text="删除"
+      title="删除这个步骤？"
+      :message="`确定删除“${removingStep?.title}”？`"
+      confirm-text="删除步骤"
       danger
       @cancel="removingStep = null"
       @confirm="removeStep"
@@ -397,7 +396,7 @@ async function activate() {
   try {
     const state = await PathService.activate(props.course.id, detail.value.path.id)
     activePathId.value = state.active_path?.id ?? null
-    toast.success('已设为当前学习路径，概览页会显示下一步')
+    toast.success('已设为当前路径')
   } catch (e) {
     toast.error(e)
   }

@@ -7,7 +7,7 @@
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto p-2">
         <p v-if="loading" class="p-3 text-sm text-slate-400">加载中…</p>
-        <p v-else-if="!notes.length" class="p-3 text-sm text-slate-500">还没有笔记。阅读资料时点击“记笔记”，笔记会自动关联到当前页。</p>
+        <p v-else-if="!notes.length" class="p-3 text-sm text-slate-500">还没有笔记，点击“新建笔记”开始记录。</p>
         <ul v-else class="space-y-1" aria-label="笔记列表">
           <li v-for="note in visible" :key="note.id">
             <button
@@ -61,7 +61,7 @@
           </div>
         </fieldset>
         <div class="flex flex-wrap items-center gap-2">
-          <RouterLink v-if="form.document_id" :to="sourceLink" class="btn btn-ghost btn-sm"><BookOpenIcon class="size-4" />打开原文</RouterLink>
+          <RouterLink v-if="form.document_id" :to="sourceLink" class="btn btn-ghost btn-sm"><BookOpenIcon class="size-4" />查看原文</RouterLink>
           <span v-if="current" class="text-xs text-slate-500">更新于 {{ formatDateTime(current.updated_at) }}</span>
           <div class="ml-auto flex gap-2">
             <button v-if="current" type="button" class="btn btn-ghost text-rose-600 hover:text-rose-700" @click="confirmDelete = true">删除</button>
@@ -76,9 +76,9 @@
 
     <ConfirmDialog
       :open="confirmDelete"
-      title="删除笔记"
-      :message="`确定删除“${current?.title}”吗？`"
-      confirm-text="删除"
+      title="删除这条笔记？"
+      :message="`确定删除“${current?.title}”？`"
+      confirm-text="删除笔记"
       danger
       @cancel="confirmDelete = false"
       @confirm="remove"
@@ -128,7 +128,7 @@ const visible = computed(() => {
 })
 const unitName = computed(() => {
   const kind = documents.value.find(d => d.id === form.value?.document_id)?.loc_kind ?? 'page'
-  return kind === 'line' ? '位置（第几个文本块）' : `位置（第几${UNIT_NAMES[kind]}）`
+  return kind === 'line' ? '位置（第几段）' : `位置（第几${UNIT_NAMES[kind]}）`
 })
 const sourceLink = computed(() => ({
   name: 'documents',

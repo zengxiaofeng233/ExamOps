@@ -35,7 +35,7 @@ impl std::fmt::Display for GatewayError {
             GatewayError::InvalidResponse(e) => write!(f, "AI 服务返回了无法识别的数据{}", detail(e)),
             // The transport error ("error decoding response body"…) means nothing to a student;
             // it stays available through `Debug` for diagnostics.
-            GatewayError::Interrupted(_) => write!(f, "连接中断，已保留已生成的内容，可以点击“重试”重新生成"),
+            GatewayError::Interrupted(_) => write!(f, "连接中断，已保留已生成的内容，可重试生成"),
             GatewayError::Cancelled => write!(f, "已停止生成"),
         }
     }

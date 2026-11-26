@@ -37,7 +37,7 @@
         <p class="mt-1 rounded-md bg-slate-50 p-2 whitespace-pre-wrap">{{ reasoning }}</p>
       </details>
 
-      <p v-if="message.status === 'cancelled'" class="mt-2 text-xs text-slate-500">已停止生成，以上为已生成的部分。</p>
+      <p v-if="message.status === 'cancelled'" class="mt-2 text-xs text-slate-500">已停止生成</p>
       <p v-if="message.meta.output_truncated" class="mt-2 text-xs text-amber-600">回答达到最大输出长度被截断，可在模型设置中调大“最大输出”。</p>
       <div v-if="message.status === 'error'" class="mt-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800" role="alert">
         <p class="break-words">{{ message.error }}</p>
@@ -75,7 +75,7 @@ const preview = ref<HTMLDialogElement>()
 const previewImage = ref<ImageAttachment>()
 
 const reasoning = computed(() => props.liveReasoning || (props.message.meta.reasoning as string | undefined) || '')
-const contextLabel = computed(() => ({ full: '全文上下文', rag: '检索上下文', lesson: '本节资料', none: '无资料' } as Record<string, string>)[props.message.meta.context_mode ?? ''] ?? '')
+const contextLabel = computed(() => ({ full: '全文', rag: '检索', lesson: '本节资料', none: '无资料' } as Record<string, string>)[props.message.meta.context_mode ?? ''] ?? '')
 /** Teaching buttons are stored as short action messages. */
 const isAction = computed(() => !!props.message.meta.plan?.action && props.message.meta.plan.action !== 'ask')
 const partLabel = computed(() => {
@@ -87,7 +87,7 @@ const contextTitle = computed(() => {
   const parts = []
   if (meta.context_tokens != null) parts.push(`本次发送资料约 ${meta.context_tokens} tokens`)
   if (meta.material_tokens) parts.push(`范围内资料共约 ${meta.material_tokens} tokens`)
-  if (meta.usage) parts.push(`用量：输入 ${meta.usage.prompt} / 输出 ${meta.usage.completion}${meta.usage.estimated ? '（估算）' : ''}`)
+  if (meta.usage) parts.push(`用量：输入 ${meta.usage.prompt} / 输出 ${meta.usage.completion} tokens${meta.usage.estimated ? '（估算）' : ''}`)
   return parts.join('\n')
 })
 const needsSettings = computed(() => ['auth', 'not_found', 'invalid_url', 'no_profile'].includes(props.message.meta.error_kind ?? ''))

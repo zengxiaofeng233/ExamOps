@@ -3,7 +3,6 @@
     <header class="page-header flex items-center justify-between gap-4">
       <div>
         <h1 class="page-title">我的课程</h1>
-        <p class="page-subtitle">每门课程独立管理资料、学习路径和复习记录。</p>
       </div>
       <button class="btn btn-primary" @click="openCreate">
         <PlusIcon class="size-4" />创建课程
@@ -21,9 +20,9 @@
       <EmptyState
         v-else-if="!courseStore.sortedCourses.length"
         title="还没有课程"
-        description="创建一门课程，然后导入教材、PPT 等学习资料。"
+        description="创建课程后即可导入教材、PPT 等学习资料。"
       >
-        <button class="btn btn-primary" @click="openCreate">创建第一门课程</button>
+        <button class="btn btn-primary" @click="openCreate">创建课程</button>
       </EmptyState>
 
       <div v-else class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -62,7 +61,7 @@
         <div>
           <label class="label" for="course-exam">考试日期（可选）</label>
           <input id="course-exam" v-model="form.exam_date" type="date" class="input" />
-          <p class="hint">设置后，复习计划会在考前自动加密，考前冲刺也会参考剩余天数。</p>
+          <p class="hint">设置后，临近考试时会自动缩短复习间隔，考前冲刺也会参考剩余天数。</p>
         </div>
       </form>
       <template #footer>
@@ -75,9 +74,9 @@
 
     <ConfirmDialog
       :open="!!courseToDelete"
-      title="删除课程"
-      :message="`确定要删除课程“${courseToDelete?.name}”吗？\n课程的资料副本、提取正文、学习记录将一并删除，原文件不受影响。此操作无法撤销。`"
-      confirm-text="删除"
+      title="删除这门课程？"
+      :message="`确定删除“${courseToDelete?.name}”？\n课程的资料副本、提取正文和学习记录将一并删除，原文件不受影响，此操作无法撤销。`"
+      confirm-text="删除课程"
       danger
       :busy="deleting"
       @cancel="courseToDelete = null"

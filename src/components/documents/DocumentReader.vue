@@ -8,7 +8,7 @@
           <p class="mt-0.5 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
             <span>{{ FILE_LABELS[document.file_type] ?? document.file_type }}</span>
             <span v-if="document.status === 'completed'">{{ unitCount(document) }}</span>
-            <span v-if="document.status === 'completed'">{{ sections.length }} 个章节 / 学习单元</span>
+            <span v-if="document.status === 'completed'">{{ sections.length }} 个章节</span>
             <span v-if="document.image_count">{{ document.image_count }} 张图片</span>
             <span v-if="document.char_count">{{ document.char_count.toLocaleString() }} 字</span>
             <span v-if="document.status === 'completed'" :class="document.structure_source === 'legacy' ? 'text-amber-600' : ''">
@@ -88,7 +88,7 @@
         </div>
 
         <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          <p v-if="splitting" class="mb-3 rounded bg-indigo-50 p-3 text-sm text-indigo-800">选择新章节“{{ splitting.title }}”的第一个正文块。
+          <p v-if="splitting" class="mb-3 rounded bg-indigo-50 p-3 text-sm text-indigo-800">选择新章节“{{ splitting.title }}”的起始段落。
             <button class="ml-2 underline" @click="splitting = null">取消拆分</button>
           </p>
           <p v-if="loadingPages" class="text-sm text-slate-400">加载内容…</p>

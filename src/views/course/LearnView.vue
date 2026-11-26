@@ -32,7 +32,7 @@
       </div>
       <div class="min-h-0 flex-1 overflow-y-auto p-2">
         <p v-if="loading" class="p-3 text-sm text-slate-400">加载中…</p>
-        <p v-else-if="!conversations.length" class="p-3 text-sm text-slate-500">还没有学习记录。选择模式和章节后点击“开始”，学习进度会自动保存。</p>
+        <p v-else-if="!conversations.length" class="p-3 text-sm text-slate-500">还没有学习记录。选择模式和章节后点“开始”。</p>
         <ul v-else class="space-y-1" aria-label="学习记录">
           <li v-for="item in conversations" :key="item.id" class="group relative">
             <button
@@ -82,9 +82,7 @@
             <div v-if="!messages.length" class="card p-5 text-sm text-slate-600">
               <p class="font-medium text-slate-800">{{ introTitle }}</p>
               <p class="mt-1">{{ MODE_DESCRIPTIONS[active.mode as PathMode] }}</p>
-              <p v-if="active.mode === 'learn' && active.progress.parts" class="mt-1">内容共分 {{ active.progress.parts }} 个部分，进度会自动保存，下次可以接着学。</p>
               <p v-if="active.resource_id" class="mt-1 text-amber-700">AI 只根据你在“网课”页填写的字幕、笔记和时间戳讲解，不会凭链接猜测视频内容。</p>
-              <p class="mt-2 text-xs text-slate-500">讲解中随时可以直接提问，或使用下方的“举个例子”“换种方式讲讲”等按钮。</p>
               <button class="btn btn-primary mt-3" :disabled="panelBusy || !models.configured" @click="act('start')">
                 <PlayIcon class="size-4" />{{ startText }}
               </button>
@@ -115,7 +113,6 @@
                 v-if="active.mode === 'learn' && !active.progress.finished"
                 class="btn btn-ghost btn-sm ml-auto"
                 :disabled="busy"
-                title="不再逐段讲解，直接把本章知识点标记为“学过”"
                 @click="finishing = true"
               >
                 <CheckCircleIcon class="size-4" />标记已学完
@@ -123,7 +120,7 @@
             </div>
           </template>
         </ChatPanel>
-        <EmptyState v-else-if="!loading" title="选择学习模式和章节" description="从零学习按章节分段讲解；正常复习用回忆题巩固；考前冲刺直击考点。" />
+        <EmptyState v-else-if="!loading" title="选择学习模式和章节" />
       </div>
 
       <aside v-if="active?.mode === 'learn' && outline.length" class="hidden w-60 shrink-0 overflow-y-auto border-l border-slate-200 bg-surface p-3 lg:block" aria-label="本次学习内容">
@@ -149,23 +146,23 @@
             </button>
           </li>
         </ol>
-        <p v-if="active.progress.finished" class="mt-3 rounded-md bg-emerald-50 p-2 text-xs text-emerald-700">已学完，相关知识点已标记为“学过”。去做一次小测，检验是否真正掌握。</p>
+        <p v-if="active.progress.finished" class="mt-3 rounded-md bg-emerald-50 p-2 text-xs text-emerald-700">已学完，去做一次小测检验掌握程度吧。</p>
       </aside>
     </section>
 
     <ConfirmDialog
       :open="!!removing"
-      title="删除学习记录"
-      :message="`确定删除“${removing?.title}”的对话和学习进度吗？知识点的学习状态不受影响。`"
-      confirm-text="删除"
+      title="删除这条学习记录？"
+      :message="`确定删除“${removing?.title}”的对话和学习进度？知识点的学习状态不受影响。`"
+      confirm-text="删除记录"
       danger
       @cancel="removing = null"
       @confirm="remove"
     />
     <ConfirmDialog
       :open="finishing"
-      title="标记已学完"
-      message="将本次内容标记为已学完，相关知识点会记为“学过”（不是“已掌握”，掌握程度由测验决定）。关联的学习任务也会完成。"
+      title="标记为已学完？"
+      message="将本次内容标为已学完，相关知识点会记为“学过”（非“已掌握”），关联的学习步骤也会完成。"
       confirm-text="标记已学完"
       @cancel="finishing = false"
       @confirm="finishLesson"
@@ -249,11 +246,11 @@ const actionButtons = computed<ActionButton[]>(() => {
     const list: ActionButton[] = []
     if (!item.progress.finished) {
       list.push(atEnd
-        ? { action: 'continue', label: '讲完了，总结全部内容', primary: true }
+        ? { action: 'continue', label: '总结全部内容', primary: true }
         : { action: 'continue', label: '继续讲解下一部分', primary: true })
     }
     list.push({ action: 'example', label: '举个例子' }, { action: 'rephrase', label: '换种方式讲讲' })
-    if (!atEnd && !item.progress.finished) list.push({ action: 'skip', label: '跳过下一部分', title: '下一部分已经会了，直接讲再下一部分' })
+    if (!atEnd && !item.progress.finished) list.push({ action: 'skip', label: '跳过下一段', title: '下一部分已经会了，直接讲再下一部分' })
     list.push({ action: 'summary', label: '总结要点' })
     return list
   }
@@ -334,7 +331,7 @@ function onUpdated(conversation: Conversation) {
   if (index >= 0) conversations.value[index] = conversation
   conversations.value.sort((a, b) => b.updated_at.localeCompare(a.updated_at) || b.id - a.id)
   if (before && !before.progress.finished && conversation.progress.finished) {
-    toast.success('已学完！相关知识点已记为“学过”，可以去做小测检验掌握程度')
+    toast.success('本章已标为学过')
     if (app.settings.quiz.trigger === 'chapter' && conversation.section_id) {
       suggestion.value = {
         text: '本章学完了，来做一次章节小测，检验是否真正掌握？',

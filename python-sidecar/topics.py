@@ -77,7 +77,7 @@ def apply(units):
     for number, (a, b) in enumerate(zip(boundaries, boundaries[1:]), 1):
         weights = vector(tiles[a:b])
         words = sorted(weights, key=weights.get, reverse=True)[:3]
-        label = f"主题学习单元 {number}：{'、'.join(words)}"
+        label = f"内容片段 {number}：{'、'.join(words)}"
         position = (0, 0) if a == 0 else positions[a]
         insertions.append((position, Block(label, heading=1, kind='synthetic', source='topic')))
     for (u, b), block in reversed(insertions):

@@ -8,7 +8,7 @@
           <option value="">选择预设以填入接口地址（可修改）</option>
           <option v-for="preset in PRESETS" :key="preset.label" :value="preset.label">{{ preset.label }}</option>
         </select>
-        <p class="hint">支持任何兼容 OpenAI Chat Completions 的接口，包括本机运行的 Ollama、LM Studio。</p>
+        <p class="hint">支持任何兼容 OpenAI 接口的服务，包括本机 Ollama、LM Studio。</p>
       </div>
       <div class="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <div>
@@ -41,8 +41,8 @@
           :placeholder="profile?.has_key ? `已保存（${profile.key_hint ?? '••••'}），留空则保持不变` : '本地模型可留空'"
         />
         <p class="hint">
-          密钥保存在系统凭据管理器中，不会写入课程数据，也不会显示在界面上。
-          <button v-if="profile?.has_key" type="button" class="text-rose-600 hover:underline" @click="removeKey = true; apiKey = ''">删除已保存的密钥</button>
+          API Key 保存在系统凭据管理器中，不会写入课程数据，也不会在界面显示。
+          <button v-if="profile?.has_key" type="button" class="text-rose-600 hover:underline" @click="removeKey = true; apiKey = ''">删除已保存的 API Key</button>
           <span v-if="removeKey" class="text-rose-600">（保存后删除）</span>
         </p>
       </div>
@@ -79,7 +79,7 @@
           </div>
           <label class="flex items-start gap-2 sm:col-span-2">
             <input v-model="form.json_mode" type="checkbox" class="mt-1 accent-indigo-600" />
-            <span class="text-sm text-slate-700">接口支持 JSON 模式（response_format）<span class="block text-xs text-slate-500">生成小测、提取知识点时要求模型只输出 JSON。不确定时保持关闭。</span></span>
+            <span class="text-sm text-slate-700">强制结构化输出（部分模型不支持）<span class="block text-xs text-slate-500">开启后可减少出题和提取知识点失败；不确定时保持关闭。</span></span>
           </label>
         </div>
       </details>

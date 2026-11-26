@@ -7,7 +7,7 @@
         <h2 id="continue-title" class="section-title">继续学习</h2>
         <div v-if="hasProgress" class="mt-3 grid gap-3 lg:grid-cols-3">
           <div v-if="state?.current_step" class="rounded-lg border border-indigo-200 bg-indigo-50/50 p-4 md:col-span-3">
-            <p class="text-xs text-indigo-700">当前路径「{{ state.active_path?.name }}」的下一步 · 已完成 {{ state.active_path?.done_count }}/{{ state.active_path?.step_count }}</p>
+            <p class="text-xs text-indigo-700">当前路径「{{ state.active_path?.name }}」· 已完成 {{ state.active_path?.done_count }}/{{ state.active_path?.step_count }} 步</p>
             <p class="mt-1 flex flex-wrap items-center gap-2">
               <span class="badge bg-surface text-indigo-700">{{ state.current_step.kind_label }}</span>
               <span class="font-medium text-slate-900">{{ state.current_step.title }}</span>
@@ -34,7 +34,7 @@
           >
             <p class="flex items-center gap-1.5 text-xs text-slate-500"><BookOpenIcon class="size-4" />上次阅读</p>
             <p class="mt-1 truncate text-sm font-medium text-slate-800">{{ state.last_document_name }}</p>
-            <p class="mt-0.5 text-xs text-slate-500">{{ state.current_section_title ?? '' }}{{ state.last_page ? ` · 第 ${state.last_page} 处` : '' }}</p>
+            <p class="mt-0.5 text-xs text-slate-500">{{ state.current_section_title ?? '' }}{{ state.last_page ? ` · 位置 ${state.last_page}` : '' }}</p>
           </RouterLink>
           <RouterLink
             v-if="!state?.active_path"
@@ -42,7 +42,7 @@
             class="rounded-lg border border-dashed border-slate-300 p-4 text-sm text-slate-500 transition-colors hover:border-indigo-300 hover:text-indigo-700"
           >
             <p class="font-medium">制定学习路径</p>
-            <p class="mt-0.5 text-xs">按章节自动生成或让 AI 推荐，之后这里会显示下一步。</p>
+            <p class="mt-0.5 text-xs">按章节自动生成或让 AI 推荐，之后可在概览查看下一步。</p>
           </RouterLink>
         </div>
         <ol v-else class="mt-3 grid gap-3 lg:grid-cols-3">
@@ -93,7 +93,6 @@
               <div><dt class="flex items-center gap-1 text-xs text-slate-500"><span class="size-2 rounded-full bg-emerald-500" />已掌握</dt><dd class="text-lg font-semibold text-emerald-700">{{ counts.points_mastered }}</dd></div>
               <div><dt class="text-xs text-slate-500">疑难</dt><dd class="text-lg font-semibold text-orange-600">{{ counts.points_difficult }}</dd></div>
             </dl>
-            <p class="mt-2 text-xs text-slate-500">“学过”是学习过（阅读、讲解、网课），“已掌握”由测验结果决定。</p>
           </template>
           <p v-else class="mt-3 text-sm text-slate-500">还没有知识点。导入资料后，可以在“知识点”页从章节标题生成或让 AI 提取。</p>
           <p v-if="counts && counts.steps" class="mt-4 text-sm text-slate-600">学习路径步骤：已完成 {{ counts.steps_done }}/{{ counts.steps }}</p>
@@ -120,11 +119,10 @@
               <span class="text-[10px] text-slate-400">{{ day.date.slice(8) }}</span>
             </div>
           </div>
-          <p class="mt-2 text-xs text-slate-500">统计阅读、AI 讲解、完成学习步骤等活动。</p>
         </section>
         <section class="card p-5" aria-labelledby="about-title">
           <h2 id="about-title" class="section-title">课程简介</h2>
-          <p class="mt-2 text-sm whitespace-pre-wrap text-slate-600">{{ course.description || '暂无简介，可在课程列表中编辑。' }}</p>
+          <p class="mt-2 text-sm whitespace-pre-wrap text-slate-600">{{ course.description || '暂无简介' }}</p>
           <p class="mt-3 text-xs text-slate-500">{{ counts?.documents ?? 0 }} 份资料 · {{ counts?.sections ?? 0 }} 个章节 · 创建于 {{ formatDateTime(course.created_at).slice(0, 10) }}</p>
         </section>
       </div>

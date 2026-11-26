@@ -43,7 +43,6 @@
           <template v-else-if="active === 'study'">
             <section class="card p-5">
               <h2 class="section-title">小测</h2>
-              <p class="mt-0.5 text-sm text-slate-500">小测结果会计入知识点掌握度，并据此安排复习。</p>
               <fieldset class="mt-4">
                 <legend class="label">什么时候建议做小测</legend>
                 <div class="space-y-1.5">
@@ -51,7 +50,7 @@
                     <input v-model="form.quiz.trigger" type="radio" :value="value" class="accent-indigo-600" @change="save" />{{ label }}
                   </label>
                 </div>
-                <p class="hint">“从零学习”时按这里的设置提示你做小测；任何时候都可以在“测验”页手动开始。</p>
+                <p class="hint">用于“从零学习”模式；也可以随时在“测验”页手动开始。</p>
               </fieldset>
               <div class="mt-4 grid gap-4 sm:grid-cols-2">
                 <div>
@@ -81,11 +80,11 @@
                 <dt class="text-slate-500">数据目录</dt>
                 <dd class="font-mono text-xs break-all text-slate-700">{{ info.data_dir }}</dd>
                 <dt class="text-slate-500">数据库</dt>
-                <dd class="text-slate-700">{{ formatBytes(info.database_bytes) }}（结构版本 {{ info.schema_version }}）</dd>
+                <dd class="text-slate-700">{{ formatBytes(info.database_bytes) }}</dd>
                 <dt class="text-slate-500">资料副本</dt>
                 <dd class="text-slate-700">{{ formatBytes(info.documents_bytes) }}</dd>
               </dl>
-              <p class="hint mt-3">备份时关闭 ExamOps 后复制整个数据目录即可。可以将数据库、资料和预览缓存迁移到其他磁盘。</p>
+              <p class="hint mt-3">备份时关闭 ExamOps 后复制整个数据目录即可，也可以迁移到其他磁盘。</p>
               <div class="mt-4 flex flex-wrap gap-2">
                 <button class="btn btn-secondary" @click="openDir">打开数据目录</button>
                 <button class="btn btn-secondary" :disabled="storageBusy || !storage" @click="chooseDirectory">更改存储位置</button>
@@ -93,10 +92,10 @@
               <div v-if="storage?.pending_dir" class="mt-4 rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm text-slate-700" role="status">
                 <p>下次启动时迁移到：</p>
                 <p class="mt-1 break-all font-mono text-xs">{{ storage.pending_dir }}</p>
-                <p class="mt-2">请等待导入、AI 生成等任务完成，关闭所有 ExamOps 窗口后重新打开。迁移期间启动可能较慢，请勿关闭程序。当前仍使用原目录。</p>
+                <p class="mt-2">请等待导入、AI 生成等任务完成，关闭所有 ExamOps 窗口后重新打开。迁移期间启动可能较慢，请勿关闭窗口。</p>
                 <button class="btn btn-secondary mt-3" :disabled="storageBusy" @click="cancelMigration">取消迁移</button>
               </div>
-              <p class="hint mt-3">迁移成功后旧数据暂时保留，可在此确认清理。系统目录仍会保留定位配置及运行时文件。</p>
+              <p v-if="storage?.previous_dirs?.length" class="hint mt-3">迁移成功后旧数据会暂时保留，确认无误后可清理。</p>
               <div v-for="directory in storage?.previous_dirs ?? []" :key="directory" class="mt-4 rounded-lg border border-slate-200 p-3 text-sm text-slate-700">
                 <p>迁移已完成，旧副本尚未清理：</p>
                 <p class="mt-1 break-all font-mono text-xs">{{ directory }}</p>
@@ -113,18 +112,17 @@
                   {{ updates.checking ? '正在检查…' : '检查更新' }}
                 </button>
               </div>
-              <p class="mt-2 text-sm text-slate-500">启动时检查正式版本。点击下载后可继续使用，更新包通过签名校验后，由你选择安装并重启。</p>
+              <p class="mt-2 text-sm text-slate-500">启动时检查正式版本，下载过程中可继续使用。</p>
               <p v-if="updates.error" class="mt-3 text-sm text-rose-600" role="alert">{{ updates.error }}</p>
               <div v-else-if="updates.available" class="mt-3 text-sm text-slate-700">
                 <p>发现新版本 v{{ updates.available.version }}（当前 v{{ updates.available.current_version }}）</p>
                 <p class="mt-1 break-all text-xs text-slate-500">{{ updates.available.asset_name }}</p>
                 <UpdateActions class="mt-3" />
               </div>
-              <p v-else-if="updates.checked && !updates.checking" class="mt-3 text-sm text-slate-600" role="status">未发现更新的 Windows x64 安装包。</p>
+              <p v-else-if="updates.checked && !updates.checking" class="mt-3 text-sm text-slate-600" role="status">已是最新版本。</p>
             </section>
             <section class="card p-5">
               <h2 class="section-title">关于 ExamOps</h2>
-              <p class="mt-2 text-sm text-slate-600">基于个人学习资料的 AI 智能复习桌面软件。</p>
               <dl v-if="info" class="mt-3 grid grid-cols-[8rem_minmax(0,1fr)] gap-y-2 text-sm">
                 <dt class="text-slate-500">版本</dt>
                 <dd class="text-slate-700">{{ info.version }}</dd>
@@ -145,11 +143,11 @@
     <AppModal :open="notices !== null" title="开源许可" size="xl" @close="notices = null">
       <MarkdownContent v-if="notices" :text="notices" class="text-sm" />
     </AppModal>
-    <ConfirmDialog :open="selectedDirectory !== null" title="更改存储位置" confirm-text="确认，下次启动迁移"
-      :busy="storageBusy" :message="`将数据库、资料副本、图片和缓存整体迁移到：\n${selectedDirectory ?? ''}\n\n请选择空文件夹。原始导入文件不移动，旧数据在验证成功后仍会保留，供你另行确认清理。\n\n确认后请等待当前任务完成，再关闭并重新打开 ExamOps。`"
+    <ConfirmDialog :open="selectedDirectory !== null" title="更改存储位置？" confirm-text="下次启动时迁移"
+      :busy="storageBusy" :message="`将数据库、资料副本、图片和缓存迁移到：\n${selectedDirectory ?? ''}\n\n请选择空文件夹，原文件不会移动，旧数据在确认清理前会保留。\n\n确认后请等待当前任务完成，再重启 ExamOps。`"
       @cancel="!storageBusy && (selectedDirectory = null)" @confirm="scheduleMigration" />
-    <ConfirmDialog :open="cleanupDirectory !== null" title="清理旧数据" confirm-text="确认清理" danger
-      :busy="storageBusy" :message="`请先确认新目录中的资料、图片和学习记录正常。\n\n将删除以下旧目录中已迁移且未变化的数据库、资料副本和缓存：\n${cleanupDirectory ?? ''}\n\n当前数据、原始导入文件和其他文件不会删除。此操作无法撤销。`"
+    <ConfirmDialog :open="cleanupDirectory !== null" title="清理旧数据？" confirm-text="清理旧数据" danger
+      :busy="storageBusy" :message="`请先确认新目录中的资料、图片和学习记录正常。\n\n将删除旧目录中已迁移的数据库、资料副本和缓存：\n${cleanupDirectory ?? ''}\n\n当前数据与原文件不受影响，此操作无法撤销。`"
       @cancel="!storageBusy && (cleanupDirectory = null)" @confirm="cleanupPrevious" />
   </div>
 </template>

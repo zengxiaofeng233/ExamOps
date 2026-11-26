@@ -104,7 +104,7 @@ pub fn list(conn: &Connection, course_id: i64) -> AppResult<Vec<Resource>> {
 }
 
 pub fn get(conn: &Connection, id: i64) -> AppResult<Resource> {
-    let mut resource = conn.query_row(&format!("{SELECT} WHERE r.id = ?1"), [id], from_row).or_not_found("网课资源")?;
+    let mut resource = conn.query_row(&format!("{SELECT} WHERE r.id = ?1"), [id], from_row).or_not_found("网课")?;
     resource.marks = marks(conn, id)?;
     Ok(resource)
 }
@@ -162,7 +162,7 @@ pub fn save(conn: &Connection, input: ResourceInput) -> AppResult<Resource> {
 
 pub fn delete(conn: &Connection, id: i64) -> AppResult<()> {
     if conn.execute("DELETE FROM resources WHERE id = ?1", [id])? == 0 {
-        return Err(AppError::NotFound("网课资源"));
+        return Err(AppError::NotFound("网课"));
     }
     Ok(())
 }
@@ -250,11 +250,11 @@ pub fn relevant_parts(parts: &[String], query: &str, limit: usize) -> Vec<usize>
 pub fn transcript_label(resource: &Resource) -> &'static str {
     let text = resource.transcript.trim_start();
     if text.starts_with(crate::bilibili::SUMMARY_HEADER) {
-        "B站 AI 总结（非完整字幕）"
+        "B 站 AI 总结（非完整字幕）"
     } else if text.contains(crate::bilibili::SUMMARY_HEADER) {
-        "文字稿（含 B站 AI 总结）"
+        "文字稿（含 B 站 AI 总结）"
     } else if text.starts_with(crate::bilibili::SUBTITLE_HEADER) {
-        "B站字幕"
+        "B 站字幕"
     } else {
         "字幕/文字稿"
     }
@@ -346,8 +346,8 @@ mod tests {
         let mut summary_video = video.clone();
         summary_video.transcript = format!("{}\n{}", crate::bilibili::SUMMARY_HEADER, "摘要内容".repeat(800));
         let summary = material(&summary_video, &[1], 1).unwrap();
-        assert!(summary.text.contains("B站 AI 总结（非完整字幕） 第 2/"));
-        assert_eq!(summary.sources[0].loc_label, "B站 AI 总结（非完整字幕）");
+        assert!(summary.text.contains("B 站 AI 总结（非完整字幕） 第 2/"));
+        assert_eq!(summary.sources[0].loc_label, "B 站 AI 总结（非完整字幕）");
         // Transcripts are split on line boundaries and searched by shared terms.
         let video = save(&conn, ResourceInput {
             id: Some(video.id), course_id: 1, kind: None, title: "导数精讲".into(), url: String::new(), section_id: None,

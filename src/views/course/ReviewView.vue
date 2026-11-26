@@ -34,6 +34,9 @@
                 <SparklesIcon class="size-4" :class="advising ? 'animate-pulse' : ''" />{{ advice ? '重新生成' : '生成建议' }}
               </button>
             </div>
+            <p v-if="!models.configured && models.loaded" class="mt-2 text-xs text-amber-700">
+              还没配置 AI 模型，<RouterLink to="/settings?section=models" class="underline">前往设置</RouterLink>
+            </p>
             <p v-if="advising" class="mt-3 text-sm text-indigo-700" role="status">AI 正在分析你的学习数据…</p>
             <template v-else-if="advice">
               <MarkdownContent :text="advice.text" class="mt-3" />
@@ -54,14 +57,14 @@
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <h2 id="queue-title" class="section-title">复习队列</h2>
-              <p class="text-xs text-slate-500">按间隔复习：答得好间隔变长，答得不好明天再复习；临近考试时自动缩短间隔。</p>
+              <p class="text-xs text-slate-500">答得好间隔变长，答得不好明天再复习；临近考试时自动缩短间隔。</p>
             </div>
             <button v-if="queue.items.length" class="btn btn-primary btn-sm" @click="quiz({ course_id: course.id, origin: 'review' })">
               <PlayIcon class="size-4" />开始复习小测
             </button>
           </div>
           <p v-if="!queue.items.length" class="mt-4 text-sm text-slate-500">
-            {{ queue.summary.tested ? `没有到期的复习${queue.summary.next_due ? `，下次复习：${describeDue(queue.summary.next_due)}（${queue.summary.next_due}）` : ''}。` : '学过的知识点做过小测后，这里会按遗忘规律安排复习。' }}
+            {{ queue.summary.tested ? `没有到期的复习${queue.summary.next_due ? `，下次复习：${describeDue(queue.summary.next_due)}（${queue.summary.next_due}）` : ''}。` : '学过的知识点做过小测后，会按遗忘规律安排复习。' }}
           </p>
           <ul v-else class="mt-3 divide-y divide-slate-100">
             <li v-for="item in queue.items" :key="item.point.id" class="flex flex-wrap items-center gap-3 py-2.5">
@@ -184,7 +187,7 @@ const cards = computed(() => {
   return [
     { label: '今日到期', value: s.due, hint: s.overdue ? `其中过期 ${s.overdue}` : s.next_due ? `下次 ${describeDue(s.next_due)}` : '', tone: s.due ? 'text-rose-600' : 'text-slate-900' },
     { label: '薄弱知识点', value: s.weak, hint: '掌握度低于 60%', tone: s.weak ? 'text-amber-600' : 'text-slate-900' },
-    { label: '学过未测', value: s.untested, hint: '学过不等于掌握', tone: 'text-sky-700' },
+    { label: '学过未测', value: s.untested, hint: '', tone: 'text-sky-700' },
     { label: '未解决错题', value: s.open_mistakes, hint: '', tone: s.open_mistakes ? 'text-rose-600' : 'text-slate-900' },
     { label: '已掌握', value: `${s.mastered}/${s.tested}`, hint: s.average !== null ? `平均掌握度 ${percent(s.average)}` : '还没有测验', tone: 'text-emerald-700' }
   ]

@@ -42,7 +42,7 @@
     </header>
 
     <div v-if="!models.configured && models.loaded" class="border-b border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800">
-      尚未配置 AI 模型。<RouterLink to="/settings?section=models" class="font-medium underline">前往设置添加</RouterLink>后即可提问。
+      还没配置 AI 模型，<RouterLink to="/settings?section=models" class="font-medium underline">前往设置</RouterLink>后即可提问。
     </div>
 
     <div ref="scroller" class="min-h-0 flex-1 overflow-y-auto px-4 py-5" @scroll="onScroll">
@@ -226,7 +226,7 @@ function onEvent(event: ChatEvent) {
 async function run(content: string, regenerate: boolean, options: SendOptions = {}) {
   if (!conversation.value || busy.value) return
   if (!models.configured) {
-    toast.error('尚未配置 AI 模型，请先在设置中添加')
+    toast.error('还没配置 AI 模型，请先前往设置')
     return
   }
   busy.value = true

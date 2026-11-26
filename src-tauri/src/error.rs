@@ -7,11 +7,11 @@ use serde::{Serialize, Serializer};
 
 #[derive(Debug, thiserror::Error)]
 pub enum AppError {
-    #[error("数据库错误：{0}")]
+    #[error("本地数据读写失败：{0}")]
     Db(#[from] rusqlite::Error),
-    #[error("文件操作失败：{0}")]
+    #[error("文件读写失败：{0}")]
     Io(#[from] std::io::Error),
-    #[error("数据格式错误：{0}")]
+    #[error("数据格式有误：{0}")]
     Json(#[from] serde_json::Error),
     #[error("未找到{0}")]
     NotFound(&'static str),
@@ -51,7 +51,7 @@ impl From<tauri::Error> for AppError {
 
 impl From<tokio::task::JoinError> for AppError {
     fn from(error: tokio::task::JoinError) -> Self {
-        AppError::Message(format!("后台任务异常：{error}"))
+        AppError::Message(format!("后台处理出错：{error}"))
     }
 }
 

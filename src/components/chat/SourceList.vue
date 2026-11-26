@@ -9,7 +9,6 @@
       <li v-for="source in sorted" :key="source.label">
         <button
           class="flex w-full items-start gap-2 rounded-md px-2 py-1.5 text-left text-xs hover:bg-surface"
-          :title="source.excerpt"
           @click="emit('open', source)"
         >
           <span class="mt-0.5 inline-flex min-w-[1.6rem] justify-center rounded px-1 text-[11px] font-semibold"

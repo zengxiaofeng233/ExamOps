@@ -38,7 +38,7 @@
       <div v-if="working" class="flex h-full flex-col items-center justify-center gap-3 p-8 text-center" role="status">
         <ArrowPathIcon class="size-8 animate-spin text-indigo-500" />
         <p class="text-sm font-medium text-slate-800">{{ workingText }}</p>
-        <p class="max-w-sm text-xs text-slate-500">题目只依据你导入的资料生成。请不要关闭窗口，通常需要十几秒到一分钟。</p>
+        <p class="max-w-sm text-xs text-slate-500">题目只根据你导入的资料生成，请不要关闭窗口。</p>
       </div>
       <template v-else-if="detail">
         <QuizRunner v-if="detail.quiz.status === 'ready'" :key="detail.quiz.id" :detail="detail" :busy="working" @submit="submit" />
@@ -59,9 +59,9 @@
 
     <ConfirmDialog
       :open="!!removing"
-      title="删除小测"
-      :message="`确定删除“${removing?.title}”吗？已经计入的掌握度和复习计划不会撤销。`"
-      confirm-text="删除"
+      title="删除这次小测？"
+      :message="`确定删除“${removing?.title}”？已计入的掌握度和复习计划不会撤销。`"
+      confirm-text="删除小测"
       danger
       @cancel="removing = null"
       @confirm="remove"
@@ -167,7 +167,7 @@ async function submit() {
   try {
     detail.value = await QuizService.submit(detail.value.quiz.id)
     replaceInList(detail.value.quiz)
-    if (detail.value.quiz.status === 'graded') toast.success(`得分 ${detail.value.quiz.score}%，已更新掌握度和复习计划`)
+    if (detail.value.quiz.status === 'graded') toast.success(`得分 ${detail.value.quiz.score}%，掌握度和复习计划已更新`)
   } catch (e) {
     toast.error(e)
     await loadDetail()

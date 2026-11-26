@@ -36,7 +36,7 @@
         <template #intro="{ messages }">
           <div v-if="!messages.length" class="card p-5 text-sm text-slate-600">
             <p class="font-medium text-slate-800">基于“{{ course.name }}”的资料提问</p>
-            <p class="mt-1">AI 会先查找你导入的教材和课件，回答中用 <span class="source-tag source-tag-textbook">教材</span><span class="source-tag source-tag-supplement">补充</span><span class="source-tag source-tag-derived">推导</span>标明内容来源，点击 <span class="rounded bg-indigo-50 px-1 text-[11px] font-semibold text-indigo-700">S1</span> 这样的编号可以跳到原文。</p>
+            <p class="mt-1">回答会用 <span class="source-tag source-tag-textbook">教材</span><span class="source-tag source-tag-supplement">补充</span><span class="source-tag source-tag-derived">推导</span> 标明来源，编号 <span class="rounded bg-indigo-50 px-1 text-[11px] font-semibold text-indigo-700">S1</span> 可跳到原文。</p>
             <div class="mt-3 flex flex-wrap gap-2">
               <button v-for="sample in samples" :key="sample" class="btn btn-soft btn-sm" @click="panel?.setDraft(sample)">{{ sample }}</button>
             </div>
@@ -50,9 +50,9 @@
 
     <ConfirmDialog
       :open="!!removing"
-      title="删除对话"
-      :message="`确定删除“${removing?.title || '新对话'}”及其全部消息吗？`"
-      confirm-text="删除"
+      title="删除这段对话？"
+      :message="`确定删除“${removing?.title || '新对话'}”及其全部消息？`"
+      confirm-text="删除对话"
       danger
       @cancel="removing = null"
       @confirm="remove"
@@ -83,7 +83,7 @@ const creating = ref(false)
 const removing = ref<Conversation | null>(null)
 const panel = ref<InstanceType<typeof ChatPanel>>()
 const activeId = computed(() => Number(route.query.c) || null)
-const samples = ['这门课有哪些核心概念？', '用通俗的话解释一下第一章的重点', '帮我梳理容易混淆的知识点']
+const samples = ['这门课有哪些核心概念？', '帮我梳理容易混淆的知识点']
 
 async function refresh() {
   conversations.value = await ChatService.list(props.course.id)

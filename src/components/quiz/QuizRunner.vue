@@ -65,7 +65,7 @@
           :aria-label="`第 ${index + 1} 题答案`"
           @input="scheduleSave"
         />
-        <p class="hint">{{ (drafts[current.id] ?? '').length }}/4000 · 交卷后由 AI 对照参考答案和资料批改</p>
+        <p class="hint">{{ (drafts[current.id] ?? '').length }} / 4000 字（交卷后由 AI 批改）</p>
       </div>
       <p v-if="current.skipped && !hasDraft" class="mt-3 text-xs text-slate-500">这道题已跳过，可以随时回来作答。</p>
     </section>
@@ -80,13 +80,13 @@
       <button v-else class="btn btn-primary" :disabled="busy" @click="requestSubmit"><CheckIcon class="size-4" />交卷</button>
     </footer>
     <p v-if="index < questions.length - 1" class="text-right text-xs text-slate-400">
-      答完可以随时 <button class="text-indigo-600 hover:underline disabled:opacity-50" :disabled="busy" @click="requestSubmit">交卷</button>，进度会自动保存
+      进度自动保存，可随时 <button class="text-indigo-600 hover:underline disabled:opacity-50" :disabled="busy" @click="requestSubmit">交卷</button>
     </p>
 
     <ConfirmDialog
       :open="confirming"
-      title="交卷"
-      :message="unanswered ? `还有 ${unanswered} 道题没有作答，交卷后按跳过计 0 分。确定交卷吗？` : '交卷后客观题立即判分，主观题由 AI 批改。确定交卷吗？'"
+      title="确定交卷？"
+      :message="unanswered ? `还有 ${unanswered} 道题未作答，交卷后未答题目计 0 分。确定交卷？` : '交卷后客观题立即判分，主观题由 AI 批改。确定交卷？'"
       confirm-text="交卷"
       @cancel="confirming = false"
       @confirm="submit"

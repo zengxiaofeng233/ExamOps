@@ -15,7 +15,7 @@
         </button>
       </div>
       <input v-model="keyword" type="search" class="input ml-auto w-48 py-1.5 text-xs" placeholder="搜索知识点" aria-label="搜索知识点" />
-      <button class="btn btn-secondary btn-sm" :disabled="generating" title="把识别出的小节标题作为知识点（不需要 AI）" @click="fromHeadings">
+      <button class="btn btn-secondary btn-sm" :disabled="generating" title="把识别出的小节标题作为知识点" @click="fromHeadings">
         <ListBulletIcon class="size-4" />从章节标题生成
       </button>
       <button class="btn btn-secondary btn-sm" @click="extractOpen = true">
@@ -31,7 +31,7 @@
       <EmptyState
         v-else-if="!points.length"
         title="还没有知识点"
-        description="知识点是讲解、测验和复习安排的基本单位。可以从章节标题一键生成、让 AI 从某一章提取，或手动添加。"
+        description="可从章节标题生成、让 AI 从某章提取，或手动添加。"
       >
         <button class="btn btn-primary" :disabled="generating" @click="fromHeadings">从章节标题生成</button>
         <button class="btn btn-secondary" @click="extractOpen = true">AI 提取</button>
@@ -115,7 +115,7 @@
             </li>
           </ul>
         </section>
-        <p class="pb-2 text-center text-xs text-slate-500">“学过”表示已经学习过；“已掌握”只能通过测验获得（掌握度 ≥ 80%），两者分开记录。</p>
+        <p class="pb-2 text-center text-xs text-slate-500">“学过”表示读过或听过，“已掌握”需通过测验获得（掌握度 ≥ 80%）。</p>
       </div>
     </div>
 
@@ -151,7 +151,7 @@
 
     <AppModal :open="extractOpen" title="AI 提取知识点" :persistent="extracting" @close="extractOpen = false">
       <div class="space-y-3">
-        <p class="text-sm text-slate-600">AI 会阅读所选章节的资料，整理出可以单独讲解和测验的知识点，并标注重要程度。结果会自动去重，你可以随时修改或删除。</p>
+        <p class="text-sm text-slate-600">AI 会从所选章节中整理核心知识点并标注重要程度。</p>
         <div>
           <label class="label" for="extract-section">章节</label>
           <SectionSelect id="extract-section" v-model="extractSection" :sections="sections" placeholder="选择章节" :max-level="2" />
@@ -160,7 +160,7 @@
           <ArrowPathIcon class="size-4 animate-spin" />AI 正在阅读本章，通常需要十几秒…
         </p>
         <p v-if="!models.configured && models.loaded" class="text-sm text-amber-700">
-          尚未配置 AI 模型。<RouterLink to="/settings?section=models" class="underline">前往设置</RouterLink>
+          还没配置 AI 模型，<RouterLink to="/settings?section=models" class="underline">前往设置</RouterLink>
         </p>
       </div>
       <template #footer>
@@ -171,9 +171,9 @@
 
     <ConfirmDialog
       :open="!!removing"
-      title="删除知识点"
-      :message="`确定删除“${removing?.title}”吗？`"
-      confirm-text="删除"
+      title="删除这个知识点？"
+      :message="`确定删除“${removing?.title}”？`"
+      confirm-text="删除知识点"
       danger
       @cancel="removing = null"
       @confirm="remove"
@@ -286,7 +286,7 @@ async function fromHeadings() {
     const created = await KnowledgeService.fromHeadings(props.course.id)
     await refresh()
     if (created) toast.success(`已从章节标题生成 ${created} 个知识点`)
-    else toast.info(sections.value.length ? '没有新的章节标题可以生成（已存在的不会重复添加）' : '还没有已解析的章节，请先导入资料')
+    else toast.info(sections.value.length ? '没有新的章节标题可以生成' : '还没有已解析的章节，请先导入资料')
   } catch (e) {
     toast.error(e)
   } finally {

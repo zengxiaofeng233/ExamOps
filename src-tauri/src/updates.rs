@@ -42,7 +42,7 @@ pub async fn download_update(app: AppHandle, version: String, on_progress: Chann
         .map_err(|e| AppError::msg(format!("无法获取签名更新包，可重试或手动下载：{e}")))?
         .ok_or_else(|| AppError::msg("该版本暂无应用内更新包，请手动下载"))?;
     if update.version != version {
-        return Err(AppError::msg("更新清单版本不匹配，请稍后重试"));
+        return Err(AppError::msg("版本信息不一致，请重新检查更新或手动下载"));
     }
     // Large OCR bundles need a longer download timeout than the manifest request.
     update.timeout = Some(Duration::from_secs(3600));

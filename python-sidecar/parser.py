@@ -488,7 +488,7 @@ def parse_structured(path, figures_dir=None, progress=None, cache_dir=None, ocr_
     warnings = []
     suspect = sum(bool(b.issues) for u in units for b in u.blocks)
     if suspect:
-        warnings.append(f"{suspect} 处内容含可疑 Unicode 映射，已保留提取原文，请对照原页面核验公式")
+        warnings.append(f"有 {suspect} 处公式或特殊符号可能识别有误，已保留原文，请对照原页面核验")
     if figures.skipped:
         warnings.append(f"{figures.skipped} 张图片因格式不支持或数量过多未保存")
     if loc_kind == "page" and units and sum(u.ocr for u in units) == len(units):

@@ -41,7 +41,7 @@
     <header class="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-2">
       <div class="flex items-center gap-2 text-xs text-slate-500">
         <span class="font-medium text-slate-700">{{ page.label }}</span>
-        <span v-if="page.has_ocr" class="badge bg-sky-50 text-sky-700" title="此页包含图片或扫描内容，部分文字由本地 OCR 识别">含 OCR 文字</span>
+        <span v-if="page.has_ocr" class="badge bg-sky-50 text-sky-700">含 OCR 文字</span>
       </div>
       <button v-if="previewable" class="btn btn-ghost btn-sm" @click="showPreview = !showPreview">
         {{ showPreview ? '隐藏原页面' : '查看原页面' }}
@@ -56,7 +56,7 @@
       />
     </div>
     <div class="space-y-2 px-4 py-3 text-[15px] leading-7 text-slate-800">
-      <p v-if="page.has_ocr" class="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">OCR 文字未经人工核验，公式、上下标和分式请对照原页面。</p>
+      <p v-if="page.has_ocr" class="rounded bg-amber-50 px-3 py-2 text-xs text-amber-800">OCR 文字未经核验，公式、上下标和分式请对照原页面。</p>
       <div v-for="(block, index) in visibleBlocks" :key="index">
         <button v-if="canSplit" class="mb-1 text-xs text-indigo-600 underline" @click="emit('split', (blockOffset ?? 0) + page.blocks.indexOf(block))">从此块拆分</button>
         <component :is="block.heading ? `h${Math.min(block.heading + 2, 6)}` : 'p'" :class="blockClass(block)">

@@ -64,8 +64,8 @@ pub fn extract_value(text: &str) -> Option<serde_json::Value> {
 }
 
 pub fn extract<T: DeserializeOwned>(text: &str) -> Result<T, String> {
-    let value = extract_value(text).ok_or_else(|| "AI 回复中没有找到 JSON 数据".to_string())?;
-    serde_json::from_value(value).map_err(|e| format!("AI 回复的数据格式不符合要求：{e}"))
+    let value = extract_value(text).ok_or_else(|| "AI 返回的内容格式不对，未能解析出结果".to_string())?;
+    serde_json::from_value(value).map_err(|e| format!("AI 返回的数据格式不对：{e}"))
 }
 
 #[cfg(test)]
